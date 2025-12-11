@@ -16,6 +16,9 @@ services:
       - certs:/etc/nginx/ssl
     environment:
       - TZ=UTC
+      # Use PHP file sessions instead of database sessions
+      # Fixes SQLite "database is locked" errors with concurrent requests
+      - SESSION_HANDLER=php
 volumes:
   data:
     driver: local
