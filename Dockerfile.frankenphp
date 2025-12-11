@@ -1,0 +1,61 @@
+# FrankenPHP Dockerfile for Kanboard
+# Modern PHP app server - replaces nginx + PHP-FPM with a single binary
+# https://frankenphp.dev
+
+FROM dunglas/frankenphp:1-php8.4-alpine
+
+LABEL org.opencontainers.image.source="https://github.com/kanboard/kanboard" \
+    org.opencontainers.image.title="Kanboard (FrankenPHP)" \
+    org.opencontainers.image.description="Kanboard is project management software that focuses on the Kanban methodology" \
+    org.opencontainers.image.vendor="Kanboard" \
+    org.opencontainers.image.licenses="MIT" \
+    org.opencontainers.image.url="https://kanboard.org" \
+    org.opencontainers.image.documentation="https://docs.kanboard.org"
+
+# Volumes for persistent data
+VOLUME ["/app/data", "/app/plugins"]
+
+EXPOSE 80 443
+
+ARG VERSION
+
+# Install additional system dependencies and PHP extensions
+RUN apk --no-cache --update add \
+    tzdata openssl unzip bash ca-certificates curl \
+    libwebp libavif libpng libjpeg-turbo freetype \
+    && install-php-extensions \
+        pdo_mysql \
+        pdo_sqlite \
+        pdo_pgsql \
+        gd \
+        ldap \
+        bcmath \
+        opcache \
+        zip \
+        sockets \
+        posix \
+    && rm -rf /var/cache/apk/*
+
+# Copy Caddyfile configuration
+COPY Caddyfile /etc/caddy/Caddyfile
+
+# Copy application code
+COPY . /app
+
+# Copy FrankenPHP-specific configuration
+COPY docker/frankenphp/php.ini /usr/local/etc/php/conf.d/99-kanboard.ini
+COPY docker/frankenphp/entrypoint.sh /usr/local/bin/entrypoint.sh
+
+# Set up application
+RUN rm -rf /app/docker /app/Dockerfile* \
+    && echo $VERSION > /app/app/version.txt \
+    && mkdir -p /app/data /app/plugins \
+    && chown -R www-data:www-data /app/data /app/plugins \
+    && chmod +x /usr/local/bin/entrypoint.sh
+
+# Health check
+HEALTHCHECK --start-period=5s --timeout=5s --interval=30s \
+    CMD curl -f http://localhost/healthcheck.php || exit 1
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["frankenphp", "run", "--config", "/etc/caddy/Caddyfile"]

@@ -1,0 +1,80 @@
+# Docker Compose file to run Kanboard with FrankenPHP
+# Modern PHP app server - replaces nginx + PHP-FPM
+# https://frankenphp.dev
+#
+# Usage:
+#   docker compose -f docker-compose.frankenphp.yml build
+#   docker compose -f docker-compose.frankenphp.yml up -d
+#
+# Benefits over traditional nginx + PHP-FPM:
+#   - Single process (simpler, less memory)
+#   - Automatic HTTPS with Let's Encrypt
+#   - HTTP/2 and HTTP/3 support
+#   - Better performance with built-in optimizations
+
+name: kanboard-frankenphp
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.frankenphp
+      args:
+        VERSION: "dev-frankenphp"
+    container_name: kanboard-frankenphp
+    restart: unless-stopped
+    
+    # Expose ports (use 'ports' for direct access, 'expose' for reverse proxy)
+    expose:
+      - "80"
+      - "443"
+    # Uncomment below for direct access without reverse proxy:
+    # ports:
+    #   - "8080:80"
+    #   - "8443:443"
+    
+    volumes:
+      # Persistent data
+      - data:/app/data
+      - plugins:/app/plugins
+    
+    environment:
+      # Timezone
+      - TZ=UTC
+      
+      # Server name (use your domain in production)
+      # For Coolify/reverse proxy, use :80 to listen on all hosts
+      - SERVER_NAME=:80
+      
+      # PHP Session handler (php = file-based, avoids SQLite locking)
+      - SESSION_HANDLER=php
+      
+      # FrankenPHP threads (adjust based on CPU cores)
+      - FRANKENPHP_NUM_THREADS=4
+      
+      # Log level: DEBUG, INFO, WARN, ERROR
+      - LOG_LEVEL=ERROR
+      
+      # Database configuration (SQLite by default)
+      # Uncomment and configure for MySQL/PostgreSQL:
+      # - DB_DRIVER=mysql
+      # - DB_HOSTNAME=mysql
+      # - DB_USERNAME=kanboard
+      # - DB_PASSWORD=secret
+      # - DB_NAME=kanboard
+    
+    # Resource limits (optional)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2'
+    #       memory: 512M
+    #     reservations:
+    #       cpus: '0.5'
+    #       memory: 128M
+
+volumes:
+  data:
+    driver: local
+  plugins:
+    driver: local

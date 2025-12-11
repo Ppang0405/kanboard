@@ -1,0 +1,80 @@
+# Caddyfile for Kanboard with FrankenPHP
+# https://caddyserver.com/docs/caddyfile
+
+{
+    # Global options
+    # Disable automatic HTTPS redirects (useful behind reverse proxy like Coolify)
+    auto_https disable_redirects
+    
+    # Disable admin API for security
+    admin off
+    
+    # FrankenPHP configuration
+    frankenphp {
+        # Number of PHP threads (adjust based on CPU cores)
+        num_threads {$FRANKENPHP_NUM_THREADS:4}
+    }
+    
+    # Logging
+    log {
+        output stderr
+        format console
+        level {$LOG_LEVEL:ERROR}
+    }
+}
+
+# Server block - listens on both HTTP and HTTPS
+{$SERVER_NAME:localhost}, :80, :443 {
+    # Document root
+    root * /app
+    
+    # Enable gzip compression
+    encode gzip
+    
+    # File upload size limit (100MB)
+    request_body {
+        max_size 100MB
+    }
+    
+    # Security headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-XSS-Protection "1; mode=block"
+        X-Frame-Options "SAMEORIGIN"
+        # Remove server identification
+        -Server
+    }
+    
+    # Security: Block access to sensitive files and directories
+    @blocked {
+        path /data/* /data
+        path /.ht*
+        path /.git*
+        path /*.sqlite
+        path /*.sqlite-*
+        path /*.log
+        path /config.php
+        path /composer.*
+        path /docker/*
+        path /tests/*
+    }
+    respond @blocked 404
+    
+    # Static file caching
+    @static {
+        path *.ico *.jpg *.jpeg *.png *.gif *.webp *.avif
+        path *.css *.js *.svg
+        path *.woff *.woff2 *.ttf *.eot *.otf
+    }
+    header @static {
+        Cache-Control "public, max-age=604800, immutable"
+        # Enable ETag
+        +ETag
+    }
+    
+    # Handle PHP with FrankenPHP
+    php_server {
+        # Resolve paths to index.php for clean URLs
+        resolve_root_symlink
+    }
+}
