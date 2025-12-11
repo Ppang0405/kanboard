@@ -27,6 +27,8 @@ class FileHelper extends Base
             case 'png':
             case 'gif':
             case 'svg':
+            case 'webp':
+            case 'avif':
                 return 'fa-file-image-o';
             case 'xls':
             case 'xlsx':
@@ -77,8 +79,10 @@ class FileHelper extends Base
     /**
      * Return the image mimetype based on the file extension
      *
+     * Supports modern image formats including WebP and AVIF.
+     *
      * @access public
-     * @param  $filename
+     * @param  string $filename
      * @return string
      */
     public function getImageMimeType($filename)
@@ -91,6 +95,10 @@ class FileHelper extends Base
                 return 'image/png';
             case 'gif':
                 return 'image/gif';
+            case 'webp':
+                return 'image/webp';
+            case 'avif':
+                return 'image/avif';
             default:
                 return 'image/jpeg';
         }
@@ -119,20 +127,30 @@ class FileHelper extends Base
     /**
      * Return the browser view mime-type based on the file extension.
      *
+     * Supports modern image formats (WebP, AVIF) and video formats (WebM, MKV).
+     *
      * @access public
-     * @param  $filename
-     * @return string
+     * @param  string $filename
+     * @return string|null
      */
     public function getBrowserViewType($filename)
     {
         switch (get_file_extension($filename)) {
+            // Documents
             case 'pdf':
                 return 'application/pdf';
+            // Audio
             case 'mp3':
-            case 'ogg':
-            case 'flac':
-            case 'wav':
                 return 'audio/mpeg';
+            case 'ogg':
+                return 'audio/ogg';
+            case 'flac':
+                return 'audio/flac';
+            case 'wav':
+                return 'audio/wav';
+            case 'm4a':
+                return 'audio/mp4';
+            // Video
             case 'avi':
                 return 'video/x-msvideo';
             case 'webm':
@@ -143,10 +161,96 @@ class FileHelper extends Base
                 return 'video/x-m4v';
             case 'mp4':
                 return 'video/mp4';
+            case 'mkv':
+                return 'video/x-matroska';
+            // Images
             case 'svg':
                 return 'image/svg+xml';
+            case 'webp':
+                return 'image/webp';
+            case 'avif':
+                return 'image/avif';
         }
 
         return null;
+    }
+
+    /**
+     * Check if a filename is a video file
+     *
+     * @access public
+     * @param  string $filename
+     * @return bool
+     */
+    public function isVideo($filename)
+    {
+        switch (get_file_extension($filename)) {
+            case 'mp4':
+            case 'webm':
+            case 'mov':
+            case 'avi':
+            case 'mkv':
+            case 'm4v':
+                return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if a filename is an audio file
+     *
+     * @access public
+     * @param  string $filename
+     * @return bool
+     */
+    public function isAudio($filename)
+    {
+        switch (get_file_extension($filename)) {
+            case 'mp3':
+            case 'ogg':
+            case 'flac':
+            case 'wav':
+            case 'm4a':
+            case 'opus':
+            case 'wma':
+                return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if WebP image format is supported by GD
+     *
+     * @access public
+     * @return bool
+     */
+    public function isWebpSupported()
+    {
+        if (!function_exists('gd_info')) {
+            return false;
+        }
+
+        $gdInfo = gd_info();
+        return !empty($gdInfo['WebP Support']);
+    }
+
+    /**
+     * Check if AVIF image format is supported by GD
+     *
+     * Requires PHP 8.1+ and libavif
+     *
+     * @access public
+     * @return bool
+     */
+    public function isAvifSupported()
+    {
+        if (!function_exists('gd_info')) {
+            return false;
+        }
+
+        $gdInfo = gd_info();
+        return !empty($gdInfo['AVIF Support']);
     }
 }

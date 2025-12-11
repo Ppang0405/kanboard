@@ -236,6 +236,9 @@ abstract class FileModel extends Base
     /**
      * Check if a filename is an image (file types that can be shown as thumbnail)
      *
+     * Supports modern image formats including WebP and AVIF.
+     * Thumbnail generation requires PHP GD extension with corresponding format support.
+     *
      * @access public
      * @param  string   $filename   Filename
      * @return bool
@@ -247,6 +250,8 @@ abstract class FileModel extends Base
             case 'jpg':
             case 'png':
             case 'gif':
+            case 'webp':
+            case 'avif':
                 return true;
         }
 
