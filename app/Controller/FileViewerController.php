@@ -37,8 +37,14 @@ class FileViewerController extends BaseController
     /**
      * Output file with cache
      *
-     * @param array $file
-     * @param $mimetype
+     * Serves files to the browser with caching support.
+     * Handles Safari's Range requests by returning full content with 200 status.
+     * Includes Accept-Ranges: none header to prevent future range requests.
+     *
+     * @access protected
+     * @param array $file File metadata array containing path, etag, etc.
+     * @param string $mimetype MIME type for the Content-Type header
+     * @return void
      */
     protected function renderFileWithCache(array $file, $mimetype)
     {
@@ -46,12 +52,20 @@ class FileViewerController extends BaseController
             $this->response->status(304);
         } else {
             try {
+                // Get file content first to determine Content-Length
+                $content = $this->objectStorage->get($file['path']);
+                
                 $this->response->withContentType($mimetype);
                 $this->response->withCache(5 * 86400, $file['etag']);
+                // Tell browsers we don't support Range requests (prevents Safari errors)
+                $this->response->withHeader('Accept-Ranges', 'none');
+                // Content-Length helps Safari handle the response properly
+                $this->response->withHeader('Content-Length', strlen($content));
                 $this->response->send();
-                $this->objectStorage->output($file['path']);
+                echo $content;
             } catch (ObjectStorageException $e) {
                 $this->logger->error($e->getMessage());
+                $this->response->status(404);
             }
         }
     }
@@ -113,7 +127,12 @@ class FileViewerController extends BaseController
     /**
      * Display image thumbnail
      *
+     * Serves a thumbnail version of an image file.
+     * Falls back to generating thumbnail on-the-fly for legacy images.
+     * Handles Safari's Range requests by returning full content with 200 status.
+     *
      * @access public
+     * @return void
      */
     public function thumbnail()
     {
@@ -121,43 +140,65 @@ class FileViewerController extends BaseController
         $model = $file['model'];
         $filename = $this->$model->getThumbnailPath($file['path']);
 
-        $this->response->withCache(5 * 86400, $file['etag']);
-        $this->response->withContentType('image/png');
-
         if ($this->request->getHeader('If-None-Match') === '"'.$file['etag'].'"') {
             $this->response->status(304);
         } else {
-
-            $this->response->send();
-
             try {
-
-                $this->objectStorage->output($filename);
+                // Try to get thumbnail content
+                $content = $this->objectStorage->get($filename);
             } catch (ObjectStorageException $e) {
                 $this->logger->error($e->getMessage());
 
                 // Try to generate thumbnail on the fly for images uploaded before Kanboard < 1.0.19
-                $data = $this->objectStorage->get($file['path']);
-                $this->$model->generateThumbnailFromData($file['path'], $data);
-                $this->objectStorage->output($this->$model->getThumbnailPath($file['path']));
+                try {
+                    $data = $this->objectStorage->get($file['path']);
+                    $this->$model->generateThumbnailFromData($file['path'], $data);
+                    $content = $this->objectStorage->get($this->$model->getThumbnailPath($file['path']));
+                } catch (ObjectStorageException $e2) {
+                    $this->logger->error($e2->getMessage());
+                    $this->response->status(404);
+                    return;
+                }
             }
+
+            $this->response->withCache(5 * 86400, $file['etag']);
+            $this->response->withContentType('image/png');
+            // Tell browsers we don't support Range requests (prevents Safari errors)
+            $this->response->withHeader('Accept-Ranges', 'none');
+            // Content-Length helps Safari handle the response properly
+            $this->response->withHeader('Content-Length', strlen($content));
+            $this->response->send();
+            echo $content;
         }
     }
 
     /**
      * File download
      *
+     * Forces the browser to download the file as an attachment.
+     * Handles Safari's Range requests by returning full content with 200 status.
+     * Includes Accept-Ranges: none header to prevent future range requests.
+     *
      * @access public
+     * @return void
      */
     public function download()
     {
         try {
             $file = $this->getFile();
+            // Get file content first to determine Content-Length
+            $content = $this->objectStorage->get($file['path']);
+            
             $this->response->withFileDownload($file['name']);
+            // Tell browsers we don't support Range requests (prevents Safari errors)
+            $this->response->withHeader('Accept-Ranges', 'none');
+            // Content-Length helps Safari handle the response properly
+            $this->response->withHeader('Content-Length', strlen($content));
             $this->response->send();
-            $this->objectStorage->output($file['path']);
+            echo $content;
         } catch (ObjectStorageException $e) {
             $this->logger->error($e->getMessage());
+            $this->response->status(404);
         }
     }
 }
