@@ -30,3 +30,4 @@ vendor/
 app/version.txt
 .php-cs-fixer.cache
 /php.ini
+/docker-compose.local.yml

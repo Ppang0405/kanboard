@@ -10,7 +10,7 @@ LABEL org.opencontainers.image.source="https://github.com/kanboard/kanboard" \
 
 VOLUME ["/var/www/app/data", "/var/www/app/plugins", "/etc/nginx/ssl"]
 
-EXPOSE 3000
+EXPOSE 80 443
 
 ARG VERSION
 
