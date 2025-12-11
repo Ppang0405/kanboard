@@ -26,6 +26,7 @@
         <?php if (! isset($not_editable)): ?>
             <?= $this->asset->js('assets/js/vendor.min.js') ?>
             <?= $this->asset->js('assets/js/app.min.js') ?>
+            <?= $this->asset->js('assets/js/components/image-slideshow-optimized.js') ?>
         <?php endif ?>
 
         <?= $this->hook->asset('css', 'template:layout:css') ?>

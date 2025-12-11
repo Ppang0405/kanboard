@@ -1,18 +1,26 @@
 <?php if (! empty($images)): ?>
+    <?php
+    /**
+     * Performance optimization: Store images data ONCE instead of duplicating for each thumbnail.
+     * This prevents N² memory usage when there are many attachments.
+     */
+    $slideshowId = 'slideshow-data-' . $task['id'];
+    $slideshowConfig = array(
+        'images' => $images,
+        'regex_file_id' => 'FILE_ID',
+        'regex_etag' => 'ETAG',
+        'url' => array(
+            'image' => $this->url->to('FileViewerController', 'image', array('file_id' => 'FILE_ID', 'task_id' => $task['id'], 'etag' => 'ETAG')),
+            'thumbnail' => $this->url->to('FileViewerController', 'thumbnail', array('file_id' => 'FILE_ID', 'task_id' => $task['id'], 'etag' => 'ETAG')),
+            'download' => $this->url->to('FileViewerController', 'download', array('file_id' => 'FILE_ID', 'task_id' => $task['id'], 'etag' => 'ETAG')),
+        )
+    );
+    ?>
+    <script type="application/json" id="<?= $slideshowId ?>"><?= json_encode($slideshowConfig, JSON_HEX_APOS | JSON_HEX_TAG) ?></script>
     <div class="file-thumbnails">
         <?php foreach ($images as $file): ?>
             <div class="file-thumbnail">
-                <?= $this->app->component('image-slideshow', array(
-                    'images' => $images,
-                    'image' => $file,
-                    'regex_file_id' => 'FILE_ID',
-                    'regex_etag' => 'ETAG',
-                    'url' => array(
-                        'image' => $this->url->to('FileViewerController', 'image', array('file_id' => 'FILE_ID', 'task_id' => $task['id'], 'etag' => 'ETAG')),
-                        'thumbnail' => $this->url->to('FileViewerController', 'thumbnail', array('file_id' => 'FILE_ID', 'task_id' => $task['id'], 'etag' => 'ETAG')),
-                        'download' => $this->url->to('FileViewerController', 'download', array('file_id' => 'FILE_ID', 'task_id' => $task['id'], 'etag' => 'ETAG')),
-                    )
-                )) ?>
+                <div class="js-image-slideshow-optimized" data-slideshow-id="<?= $slideshowId ?>" data-image-id="<?= $file['id'] ?>"></div>
 
                 <div class="file-thumbnail-content">
                     <div class="file-thumbnail-title">
