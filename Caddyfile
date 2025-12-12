@@ -31,9 +31,17 @@
     # Enable gzip compression
     encode gzip
     
-    # File upload size limit (100MB)
+    # File upload configuration
     request_body {
         max_size 100MB
+    }
+    
+    # Increase timeouts for large file uploads
+    timeouts {
+        read_body 10m
+        read_header 10s
+        write 10m
+        idle 2m
     }
     
     # Security headers

@@ -114,6 +114,16 @@ KB.http.uploadFile = function (url, file, csrf, onProgress, onComplete, onError,
     fd.append('csrf_token', csrf);
 
     var xhr = new XMLHttpRequest();
+    
+    // Set timeout to 10 minutes for large file uploads
+    xhr.timeout = 600000;
+    xhr.ontimeout = function() {
+        console.error('Upload timeout after 10 minutes for file:', file.name);
+        if (typeof onError !== 'undefined') {
+            onError();
+        }
+    };
+    
     xhr.upload.addEventListener('progress', onProgress);
     xhr.upload.addEventListener('error', onError);
     xhr.open('POST', url, true);
