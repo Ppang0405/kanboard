@@ -413,10 +413,26 @@ KB.component('file-upload-chunked', function (containerElement, options) {
      */
     function startFileUpload(fileIndex) {
         var state = fileStates[fileIndex];
+        
+        // If state doesn't exist, create it
+        if (!state) {
+            state = new FileUploadState(files[fileIndex], fileIndex);
+            fileStates[fileIndex] = state;
+        }
+        
         state.status = 'uploading';
         
+        // Store upload ID for resume capability
+        storeUploadId(state.file.name, state.file.size, state.uploadId);
+        
+        // If resuming, update progress bar to reflect already-uploaded chunks
+        if (state.uploadedChunks.length > 0) {
+            var progress = state.uploadedChunks.length / state.totalChunks;
+            updateFileProgress(fileIndex, progress);
+        }
+        
         // Start uploading chunks (up to maxParallel at once)
-        for (var i = 0; i < Math.min(maxParallel, state.totalChunks); i++) {
+        for (var i = 0; i < Math.min(maxParallel, state.totalChunks - state.currentChunk); i++) {
             uploadNextChunk(state);
         }
     }
@@ -480,6 +496,9 @@ KB.component('file-upload-chunked', function (containerElement, options) {
     function onFileComplete(fileIndex) {
         var state = fileStates[fileIndex];
         state.status = 'completed';
+        
+        // Clear stored upload ID (no longer needed)
+        clearStoredUploadId(state.file.name, state.file.size);
         
         // Show success checkmark
         var successElement = KB.dom('span')
@@ -620,10 +639,65 @@ KB.component('file-upload-chunked', function (containerElement, options) {
      * Handle file selection
      */
     function onFileChange() {
+        var pendingChecks = [];
+        
         for (var i = 0; i < inputFileElement.files.length; i++) {
-            files.push(inputFileElement.files[i]);
+            var file = inputFileElement.files[i];
+            
+            // Check if there's an incomplete upload for this file
+            var check = checkForIncompleteUpload(file.name, file.size).then(function(resumeData) {
+                if (resumeData) {
+                    // Ask user if they want to resume
+                    return showResumePrompt(file, resumeData);
+                } else {
+                    // No incomplete upload - add as new file
+                    files.push(file);
+                    return Promise.resolve();
+                }
+            });
+            
+            pendingChecks.push(check);
         }
-        showFiles();
+        
+        // Wait for all checks to complete
+        Promise.all(pendingChecks).then(function() {
+            showFiles();
+        });
+    }
+    
+    /**
+     * Show resume prompt to user
+     * 
+     * @param {File} file - The file to resume
+     * @param {object} resumeData - Resume information from server
+     * @returns {Promise}
+     */
+    function showResumePrompt(file, resumeData) {
+        return new Promise(function(resolve) {
+            var percentComplete = Math.floor((resumeData.uploadedChunks.length / resumeData.total_chunks) * 100);
+            var message = 'Resume upload of "' + file.name + '"? (' + percentComplete + '% already uploaded)';
+            
+            if (confirm(message)) {
+                // Resume - add file with existing upload state
+                files.push(file);
+                
+                // Pre-populate state with existing chunks
+                var state = new FileUploadState(file, files.length - 1);
+                state.uploadId = resumeData.uploadId;
+                state.uploadedChunks = resumeData.uploadedChunks;
+                state.currentChunk = resumeData.next_chunk;
+                fileStates[files.length - 1] = state;
+                
+                KB.dom('#file-item-' + (files.length - 1))
+                    .add(KB.dom('span').addClass('file-resume-info').text(' (Resuming from ' + percentComplete + '%)').build());
+            } else {
+                // Start fresh - clear old upload data
+                clearStoredUploadId(file.name, file.size);
+                files.push(file);
+            }
+            
+            resolve();
+        });
     }
 
     /**
@@ -1411,6 +1485,65 @@ timeouts {
 
 ## Error Handling & Resume
 
+### Resume Overview
+
+**Short answer:** 
+- **Automatic retry** (chunk fails) = No user action needed ✅
+- **Manual resume** (upload interrupted) = User re-selects same file, system resumes from where it left off ✅
+
+**Visual Flow:**
+
+```
+╔══════════════════════════════════════════════════════════════╗
+║                   UPLOAD IN PROGRESS                         ║
+╠══════════════════════════════════════════════════════════════╣
+║  video.mp4 (1GB = 200 chunks of 5MB each)                    ║
+║  ████████████████░░░░░░░░░░░░ 60% (chunk 120/200)            ║
+╚══════════════════════════════════════════════════════════════╝
+                          │
+        ┌─────────────────┼─────────────────┐
+        │                 │                 │
+        ▼                 ▼                 ▼
+   CHUNK FAILS      BROWSER CRASHES    UPLOAD COMPLETES
+        │                 │                 │
+        ▼                 ▼                 ▼
+  AUTO-RETRY 3x     SAVE TO DISK      CLEANUP & DONE
+   (2s, 4s, 8s)     (chunks + state)        ✅
+        │                 │
+   ┌────┴────┐           │
+   ▼         ▼           ▼
+SUCCESS   FAIL      USER COMES BACK
+   │         │       (hours/days later)
+   │         │            │
+   │         │            ▼
+   │         │      RE-SELECT FILE
+   │         │            │
+   │         │            ▼
+   │         │       SHOW PROMPT:
+   │         │      "Resume from 60%?"
+   │         │            │
+   │         │       ┌────┴────┐
+   │         │       ▼         ▼
+   │         │      YES        NO
+   │         │       │         │
+   │         ▼       ▼         ▼
+   │    MARK FAILED  │    START FRESH
+   │    (can resume  │    (delete old)
+   │     manually)   │         │
+   │         │       │         │
+   └─────────┴───────┴─────────┘
+             │
+             ▼
+       CONTINUE FROM
+        CHUNK 121
+             │
+             ▼
+      ████████████████████████ 100%
+             │
+             ▼
+          SUCCESS ✅
+```
+
 ### Client-Side Error Handling
 
 ```javascript
@@ -1491,6 +1624,59 @@ try {
 
 ### Resume Capability
 
+There are **two types of resume**:
+
+#### Type 1: Automatic Retry (Single Chunk Failure)
+
+```
+Upload in progress → Chunk 42 fails → Automatic retry (3 attempts) → Continue
+No user action needed ✅
+```
+
+**Example:**
+```
+Uploading video.mp4 (1GB = 200 chunks)
+├─ Chunk 0-41: ✅ Success
+├─ Chunk 42: ❌ Network error
+├─   → Retry 1 (after 2s): ❌ Still failing
+├─   → Retry 2 (after 4s): ✅ Success!
+├─ Chunk 43-199: ✅ Success
+└─ Upload complete
+```
+
+#### Type 2: Manual Resume (Complete Upload Failure)
+
+```
+Day 1: Upload 1GB file → 60% done → Browser crashes ❌
+       Upload ID stored in localStorage
+
+Day 2: User re-selects same file → System detects incomplete upload
+       → Prompt: "Resume from 60%?" → User clicks Yes → Continue from chunk 120
+```
+
+**Example:**
+```
+Monday 9:00 AM: Start uploading backup.zip (5GB)
+Monday 9:30 AM: Progress at 52% (chunk 520 / 1000)
+                Computer crashes 💥
+                
+Tuesday 10:00 AM: User opens Kanboard
+                  Selects backup.zip again
+                  
+                  ┌─────────────────────────────────────┐
+                  │ Resume upload of "backup.zip"?      │
+                  │ (52% already uploaded)              │
+                  │                                     │
+                  │      [Yes, Resume]  [No, Restart]   │
+                  └─────────────────────────────────────┘
+                  
+                  User clicks "Yes, Resume"
+                  → Continues from chunk 521
+                  → Upload completes in 30 minutes (instead of 60 minutes)
+```
+
+**Implementation:**
+
 ```javascript
 // Client-side: Resume from previous session
 
@@ -1543,6 +1729,52 @@ function clearStoredUploadId(filename, filesize) {
     localStorage.removeItem(key);
 }
 ```
+
+### Resume Comparison Table
+
+| Scenario | What Happens | User Action Required | Resume Type |
+|----------|--------------|---------------------|-------------|
+| **Network hiccup** (1-2s) | Chunk fails, auto-retry 3 times | ❌ None - automatic | Automatic retry |
+| **Server error** (500) | Chunk fails, retry with 5s delay | ❌ None - automatic | Automatic retry |
+| **Timeout** (chunk >2min) | Chunk fails, retry immediately | ❌ None - automatic | Automatic retry |
+| **Browser crash** | Upload stops, chunks saved | ✅ Re-select same file | Manual resume |
+| **Computer shutdown** | Upload stops, chunks saved | ✅ Re-select same file | Manual resume |
+| **Tab closed** | Upload stops, chunks saved | ✅ Re-select same file | Manual resume |
+| **WiFi disconnect** | All chunks fail, auto-retry fails | ✅ Re-select same file OR wait for WiFi | Manual resume after WiFi back |
+| **All retries exhausted** | Upload marked as failed | ✅ Re-select same file | Manual resume |
+
+### Resume Data Persistence
+
+```javascript
+// Upload ID stored in browser's localStorage
+// Format: kanboard_upload_{filename}_{filesize}
+// Example: kanboard_upload_video.mp4_1073741824
+
+localStorage.setItem('kanboard_upload_video.mp4_1073741824', 'upload-1702310400-abc123');
+
+// This persists even if:
+// - Browser is closed ✅
+// - Computer is restarted ✅
+// - Days/weeks pass ✅ (until server expires after 24 hours)
+```
+
+### What Gets Saved for Resume?
+
+**Client-side (localStorage):**
+- Upload ID (unique identifier)
+
+**Server-side (database):**
+- Upload ID
+- Task ID
+- Filename
+- Total file size
+- Total chunks
+- **Array of successfully uploaded chunk indices** (e.g., `[0,1,2,3,4,5,6]`)
+- Status (in_progress, completed, failed)
+- Expiry time (24 hours)
+
+**Server-side (disk):**
+- Individual chunk files in `/data/tmp/uploads/{upload_id}/chunk_0`, `chunk_1`, etc.
 
 ---
 
@@ -2061,6 +2293,41 @@ Access debug mode: `/task/1/file?debug=1&chunked=1`
 1. Store upload_id in localStorage correctly
 2. Increase session expiry time
 3. Check cleanup cron job schedule
+
+### Issue: What if user never comes back to resume?
+
+**Symptoms:** Incomplete uploads taking up disk space
+
+**Answer:** Automatic cleanup after 24 hours
+
+```php
+// Cron job runs every hour
+// Deletes upload sessions older than 24 hours
+
+public function cleanupExpiredSessions()
+{
+    $expiredSessions = $this->db->table('upload_sessions')
+        ->lt('expires_at', time())  // Expired > 24 hours ago
+        ->neq('status', 'completed')
+        ->findAll();
+    
+    foreach ($expiredSessions as $session) {
+        // Delete chunk files from disk
+        $this->cleanupChunks($session['upload_id']);
+    }
+    
+    // Delete database records
+    $this->db->table('upload_sessions')
+        ->lt('expires_at', time())
+        ->remove();
+}
+```
+
+**Set up cron job:**
+```bash
+# Run cleanup every hour
+0 * * * * cd /var/www/app && php cli db:cleanup-uploads
+```
 
 ### Issue: High disk usage in /tmp/uploads
 
