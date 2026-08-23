@@ -1,0 +1,7 @@
+name: kanboard
+owner: ppang0405
+package: .
+scaling:
+  mode: single_concurrency
+kind: wasmer.io/App.v0
+app_id: da_2l9IzteUOGqy

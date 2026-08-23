@@ -1,0 +1,21 @@
+[package]
+name = "ppang0405/kanboard"
+version = "1.2.53"
+description = "Kanboard - Kanban project management software"
+license = "MIT"
+
+[dependencies]
+"php/php" = "=8.3.4"
+
+[fs]
+"/app/" = "."
+"/config" = "config"
+
+[[command]]
+name = "run"
+module = "php/php:php"
+runner = "wasi"
+
+[command.annotations.wasi]
+main-args = ["-t", "/app", "-S", "localhost:8080"]
+env = ["PHPRC=/config/"]
