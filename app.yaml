@@ -3,8 +3,22 @@ owner: ppang0405
 package: .
 scaling:
   mode: single_concurrency
+locality:
+  regions:
+    - fr-pari1
+enable_email: true
 capabilities:
   database:
     engine: mysql
 kind: wasmer.io/App.v0
 app_id: da_2l9IzteUOGqy
+
+jobs:
+  - name: kanboard-cronjob
+    trigger: '*/5 * * * *'
+    action:
+      fetch:
+        path: "/?controller=CronjobController&action=run&token=125fb7a98083870de2cad7cda1c6ef9fc83a316e0208cb67b6b64fe16ef9"
+        timeout: '2m'
+        expect:
+          status_codes: [200]
