@@ -1,0 +1,20 @@
+# Local development docker-compose file
+# Builds from local Dockerfile instead of pulling from registry
+name: kanboard-local
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VERSION: "local-dev"
+    container_name: kanboard-local
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - ./data:/var/www/app/data
+      - ./plugins:/var/www/app/plugins
+    environment:
+      - TZ=UTC

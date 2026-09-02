@@ -1,0 +1,4 @@
+# Never ship local runtime data to the edge
+data/
+.git/
+.DS_Store

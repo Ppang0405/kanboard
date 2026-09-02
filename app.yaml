@@ -10,6 +10,9 @@ enable_email: true
 capabilities:
   database:
     engine: mysql
+volumes:
+  - name: data
+    mount: /data
 kind: wasmer.io/App.v0
 app_id: da_2l9IzteUOGqy
 
