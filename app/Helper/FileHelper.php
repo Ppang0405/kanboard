@@ -111,6 +111,9 @@ class FileHelper extends Base
                 return 'markdown';
             case 'txt':
                 return 'text';
+            case 'html':
+            case 'htm':
+                return 'html';
         }
 
         return null;

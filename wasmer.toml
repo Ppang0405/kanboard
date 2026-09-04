@@ -1,6 +1,6 @@
 [package]
 name = "ppang0405/kanboard"
-version = "1.2.63"
+version = "1.2.64"
 description = "Kanboard - Kanban project management software"
 license = "MIT"
 

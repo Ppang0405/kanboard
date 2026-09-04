@@ -2,6 +2,7 @@
 
 namespace Kanboard\Controller;
 
+use Kanboard\Core\Controller\AccessForbiddenException;
 use Kanboard\Core\ObjectStorage\ObjectStorageException;
 
 /**
@@ -86,6 +87,27 @@ class FileViewerController extends BaseController
             'type' => $type,
             'content' => $this->getFileContent($file),
         )));
+    }
+
+    /**
+     * Serve an HTML attachment for the sandboxed preview iframe
+     *
+     * The `Content-Security-Policy: sandbox` header keeps the document
+     * script-free even when this URL is opened outside the iframe.
+     *
+     * @access public
+     */
+    public function html()
+    {
+        $file = $this->getFile();
+
+        if ($this->helper->file->getPreviewType($file['name']) !== 'html') {
+            throw AccessForbiddenException::getInstance()->withoutLayout();
+        }
+
+        $this->response->withHeader('Content-Security-Policy', 'sandbox');
+        $this->response->withHeader('X-Content-Type-Options', 'nosniff');
+        $this->renderFileWithCache($file, 'text/html');
     }
 
     /**

@@ -10,5 +10,11 @@
         </article>
     <?php elseif ($type === 'text'): ?>
         <pre><?= $this->text->e($content) ?></pre>
+    <?php elseif ($type === 'html'): ?>
+        <iframe
+            src="<?= $this->url->href('FileViewerController', 'html', $params) ?>"
+            sandbox
+            title="<?= $this->text->e($file['name']) ?>"
+            style="width: 100%; height: 600px; border: 1px solid #dedede; border-radius: 3px; background: #fff;"></iframe>
     <?php endif ?>
 </div>
