@@ -25,7 +25,15 @@ class CronjobController extends BaseController
         $output = new NullOutput();
 
         $this->cli->setAutoExit(false);
-        $this->cli->run($input, $output);
+        $exitCode = $this->cli->run($input, $output);
+
+        // Surface console failures (e.g. DB errors) as a non-200 response so
+        // URL-based schedulers like the Wasmer Edge job can detect them.
+        if ($exitCode !== 0) {
+            $this->response->html('Cronjob failed with exit code '.$exitCode, 500);
+
+            return;
+        }
 
         $this->response->html('Cronjob executed');
     }

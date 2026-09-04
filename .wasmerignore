@@ -1,4 +1,6 @@
-# Never ship local runtime data to the edge
-data/
-.git/
+# Never ship local runtime data to the edge.
+# Anchored to the repo root: an unanchored "data/" also excluded
+# vendor/symfony/string/Resources/data/ from the published package.
+/data/
+/.git/
 .DS_Store
