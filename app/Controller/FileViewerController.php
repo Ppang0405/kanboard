@@ -105,7 +105,8 @@ class FileViewerController extends BaseController
             throw AccessForbiddenException::getInstance()->withoutLayout();
         }
 
-        $this->response->withHeader('Content-Security-Policy', 'sandbox');
+        $this->response->withHeader('X-Frame-Options', 'SAMEORIGIN');
+        $this->response->withHeader('Content-Security-Policy', "sandbox; frame-ancestors 'self'");
         $this->response->withHeader('X-Content-Type-Options', 'nosniff');
         $this->renderFileWithCache($file, 'text/html');
     }
