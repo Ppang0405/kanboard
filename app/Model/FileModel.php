@@ -247,6 +247,7 @@ abstract class FileModel extends Base
             case 'jpg':
             case 'png':
             case 'gif':
+            case 'webp':
                 return true;
         }
 
@@ -391,11 +392,18 @@ abstract class FileModel extends Base
      */
     public function generateThumbnailFromData($destination_filename, &$data)
     {
-        $blob = Thumbnail::createFromString($data)
-            ->resize()
-            ->toString();
+        try {
+            $blob = Thumbnail::createFromString($data)
+                ->resize()
+                ->toString();
 
-        $this->objectStorage->put($this->getThumbnailPath($destination_filename), $blob);
+            $this->objectStorage->put($this->getThumbnailPath($destination_filename), $blob);
+        } catch (\Throwable $e) {
+            // GD may not decode every image variant (e.g. animated webp);
+            // the original still previews via the image action, only the
+            // thumbnail is skipped.
+            $this->logger->error(__METHOD__.': '.$e->getMessage());
+        }
     }
 
     /**
@@ -407,10 +415,14 @@ abstract class FileModel extends Base
      */
     public function generateThumbnailFromFile($uploaded_filename, $destination_filename)
     {
-        $blob = Thumbnail::createFromFile($uploaded_filename)
-            ->resize()
-            ->toString();
+        try {
+            $blob = Thumbnail::createFromFile($uploaded_filename)
+                ->resize()
+                ->toString();
 
-        $this->objectStorage->put($this->getThumbnailPath($destination_filename), $blob);
+            $this->objectStorage->put($this->getThumbnailPath($destination_filename), $blob);
+        } catch (\Throwable $e) {
+            $this->logger->error(__METHOD__.': '.$e->getMessage());
+        }
     }
 }

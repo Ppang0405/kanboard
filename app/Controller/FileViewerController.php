@@ -14,15 +14,31 @@ use Kanboard\Core\ObjectStorage\ObjectStorageException;
 class FileViewerController extends BaseController
 {
     /**
+     * Maximum file size (in bytes) loaded into memory for text-based previews.
+     * Larger files fall back to download-only instead of exhausting memory.
+     */
+    const PREVIEW_MAX_SIZE = 1048576;
+
+    /**
      * Get file content from object storage
+     *
+     * Text-based previews (markdown, text) are capped at PREVIEW_MAX_SIZE.
+     * Returns null when the file is too large to preview safely.
      *
      * @access protected
      * @param  array $file
-     * @return string
+     * @param  string|null $type  Preview type from FileHelper::getPreviewType()
+     * @return string|null
      */
-    protected function getFileContent(array $file)
+    protected function getFileContent(array $file, $type = null)
     {
         $content = '';
+
+        if ($type === 'text' || $type === 'markdown') {
+            if ($file['size'] > self::PREVIEW_MAX_SIZE) {
+                return null;
+            }
+        }
 
         try {
             if ($file['is_image'] == 0) {
@@ -85,7 +101,8 @@ class FileViewerController extends BaseController
             'file' => $file,
             'params' => $params,
             'type' => $type,
-            'content' => $this->getFileContent($file),
+            'content' => $this->getFileContent($file, $type),
+            'too_large' => ($type === 'text' || $type === 'markdown') && $file['size'] > self::PREVIEW_MAX_SIZE,
         )));
     }
 
@@ -112,6 +129,35 @@ class FileViewerController extends BaseController
     }
 
     /**
+     * Stream an audio or video attachment for the in-modal media player
+     *
+     * Serves the file with its proper mime-type so the browser can play it
+     * inline. Only files mapped by getAudioMimeType()/getVideoMimeType()
+     * are served here (403 otherwise).
+     *
+     * @access public
+     */
+    public function media()
+    {
+        $file = $this->getFile();
+        $type = $this->helper->file->getPreviewType($file['name']);
+
+        if ($type === 'audio') {
+            $mimetype = $this->helper->file->getAudioMimeType($file['name']);
+        } elseif ($type === 'video') {
+            $mimetype = $this->helper->file->getVideoMimeType($file['name']);
+        } else {
+            $mimetype = null;
+        }
+
+        if ($mimetype === null) {
+            throw AccessForbiddenException::getInstance()->withoutLayout();
+        }
+
+        $this->renderFileWithCache($file, $mimetype);
+    }
+
+    /**
      * Display image
      *
      * @access public
@@ -125,12 +171,25 @@ class FileViewerController extends BaseController
     /**
      * Display file in browser
      *
+     * Falls back to the audio/video mime-types for stale or bookmarked
+     * links to files that have since moved to the in-modal media player.
+     *
      * @access public
      */
     public function browser()
     {
         $file = $this->getFile();
-        $this->renderFileWithCache($file, $this->helper->file->getBrowserViewType($file['name']));
+        $mimetype = $this->helper->file->getBrowserViewType($file['name']);
+
+        if ($mimetype === null) {
+            $mimetype = $this->helper->file->getAudioMimeType($file['name']);
+        }
+
+        if ($mimetype === null) {
+            $mimetype = $this->helper->file->getVideoMimeType($file['name']);
+        }
+
+        $this->renderFileWithCache($file, $mimetype);
     }
 
     /**

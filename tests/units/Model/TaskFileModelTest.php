@@ -130,6 +130,7 @@ class TaskFileModelTest extends Base
         $this->assertTrue($fileModel->isImage('test.gif'));
         $this->assertTrue($fileModel->isImage('test.jpg'));
         $this->assertTrue($fileModel->isImage('test.JPG'));
+        $this->assertTrue($fileModel->isImage('test.webp'));
 
         $this->assertFalse($fileModel->isImage('test.bmp'));
         $this->assertFalse($fileModel->isImage('test'));
