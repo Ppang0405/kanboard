@@ -174,6 +174,9 @@ class FileViewerController extends BaseController
      * Falls back to the audio/video mime-types for stale or bookmarked
      * links to files that have since moved to the in-modal media player.
      *
+     * Overrides the global X-Frame-Options: DENY so the PDF preview
+     * iframe (same origin) is allowed to embed this response.
+     *
      * @access public
      */
     public function browser()
@@ -189,6 +192,8 @@ class FileViewerController extends BaseController
             $mimetype = $this->helper->file->getVideoMimeType($file['name']);
         }
 
+        $this->response->withHeader('X-Frame-Options', 'SAMEORIGIN');
+        $this->response->withHeader('Content-Security-Policy', "frame-ancestors 'self'");
         $this->renderFileWithCache($file, $mimetype);
     }
 
