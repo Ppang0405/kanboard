@@ -174,8 +174,11 @@ class FileViewerController extends BaseController
      * Falls back to the audio/video mime-types for stale or bookmarked
      * links to files that have since moved to the in-modal media player.
      *
-     * Overrides the global X-Frame-Options: DENY so the PDF preview
-     * iframe (same origin) is allowed to embed this response.
+     * The framing override (global X-Frame-Options: DENY replaced with
+     * SAMEORIGIN) applies only to PDF/audio/video, which are embedded in
+     * the preview modal. SVG keeps the global headers: replacing its
+     * Content-Security-Policy would drop the default-src rule and allow
+     * inline scripts in directly-opened SVG files.
      *
      * @access public
      */
@@ -183,17 +186,27 @@ class FileViewerController extends BaseController
     {
         $file = $this->getFile();
         $mimetype = $this->helper->file->getBrowserViewType($file['name']);
+        $framed = $mimetype === 'application/pdf';
 
         if ($mimetype === null) {
             $mimetype = $this->helper->file->getAudioMimeType($file['name']);
+            $framed = $mimetype !== null;
         }
 
         if ($mimetype === null) {
             $mimetype = $this->helper->file->getVideoMimeType($file['name']);
+            $framed = $mimetype !== null;
         }
 
-        $this->response->withHeader('X-Frame-Options', 'SAMEORIGIN');
-        $this->response->withHeader('Content-Security-Policy', "frame-ancestors 'self'");
+        if ($mimetype === null) {
+            throw AccessForbiddenException::getInstance()->withoutLayout();
+        }
+
+        if ($framed) {
+            $this->response->withHeader('X-Frame-Options', 'SAMEORIGIN');
+            $this->response->withHeader('Content-Security-Policy', "frame-ancestors 'self'");
+        }
+
         $this->renderFileWithCache($file, $mimetype);
     }
 
