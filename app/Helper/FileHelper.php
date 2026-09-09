@@ -32,6 +32,7 @@ class FileHelper extends Base
             case 'xls':
             case 'xlsx':
             case 'xlsm':
+            case 'ods':
                 return 'fa-file-excel-o';
             case 'doc':
             case 'docx':
@@ -152,6 +153,10 @@ class FileHelper extends Base
             case 'html':
             case 'htm':
                 return 'html';
+            case 'xls':
+            case 'xlsx':
+            case 'xlsm':
+                return 'spreadsheet';
             case 'pdf':
                 return 'pdf';
             case 'mp3':

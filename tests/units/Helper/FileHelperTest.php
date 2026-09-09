@@ -38,6 +38,11 @@ class FileHelperTest extends Base
         $this->assertEquals('markdown', $helper->getPreviewType('test.markdown'));
         $this->assertEquals('markdown', $helper->getPreviewType('test.md'));
         $this->assertEquals('html', $helper->getPreviewType('test.html'));
+        $this->assertEquals('spreadsheet', $helper->getPreviewType('test.xlsx'));
+        $this->assertEquals('spreadsheet', $helper->getPreviewType('test.XLSX'));
+        $this->assertEquals('spreadsheet', $helper->getPreviewType('test.xls'));
+        $this->assertEquals('spreadsheet', $helper->getPreviewType('test.xlsm'));
+        $this->assertNull($helper->getPreviewType('test.ods'));
         $this->assertEquals('pdf', $helper->getPreviewType('test.pdf'));
         $this->assertEquals('audio', $helper->getPreviewType('test.mp3'));
         $this->assertEquals('audio', $helper->getPreviewType('test.ogg'));

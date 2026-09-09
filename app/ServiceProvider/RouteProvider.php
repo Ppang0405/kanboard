@@ -76,6 +76,7 @@ class RouteProvider implements ServiceProviderInterface
             $container['route']->addRoute('project/:project_id/file/:file_id/image/:etag', 'FileViewerController', 'image');
             $container['route']->addRoute('project/:project_id/file/:file_id/download/:etag', 'FileViewerController', 'download');
             $container['route']->addRoute('project/:project_id/file/:file_id/show/:etag', 'FileViewerController', 'show');
+            $container['route']->addRoute('project/:project_id/file/:file_id/spreadsheet', 'FileViewerController', 'spreadsheet');
             $container['route']->addRoute('project/:project_id/file/:file_id/remove', 'ProjectFileController', 'confirm');
             $container['route']->addRoute('project/:project_id/file/:file_id/view', 'FileViewerController', 'browser');
 
@@ -149,6 +150,7 @@ class RouteProvider implements ServiceProviderInterface
             $container['route']->addRoute('task/:task_id/file/:file_id/image/:etag', 'FileViewerController', 'image');
             $container['route']->addRoute('task/:task_id/file/:file_id/download/:etag', 'FileViewerController', 'download');
             $container['route']->addRoute('task/:task_id/file/:file_id/show/:etag', 'FileViewerController', 'show');
+            $container['route']->addRoute('task/:task_id/file/:file_id/spreadsheet', 'FileViewerController', 'spreadsheet');
             $container['route']->addRoute('task/:task_id/external-link/find', 'TaskExternalLinkController', 'find');
             $container['route']->addRoute('task/:task_id/external-link/create', 'TaskExternalLinkController', 'create');
             $container['route']->addRoute('task/:task_id/external-link/save', 'TaskExternalLinkController', 'save');
