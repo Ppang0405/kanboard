@@ -32,6 +32,7 @@ use Pimple\Container;
  * @property \Kanboard\Helper\ProjectActivityHelper   $projectActivity
  * @property \Kanboard\Helper\MailHelper              $mail
  * @property \Kanboard\Helper\SpreadsheetHelper       $spreadsheet
+ * @property \Kanboard\Helper\DocumentHelper          $document
  */
 class Helper
 {

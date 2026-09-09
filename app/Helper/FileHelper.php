@@ -157,6 +157,9 @@ class FileHelper extends Base
             case 'xlsx':
             case 'xlsm':
                 return 'spreadsheet';
+            case 'docx':
+            case 'pptx':
+                return 'office';
             case 'pdf':
                 return 'pdf';
             case 'mp3':

@@ -49,6 +49,11 @@ class FileHelperTest extends Base
         $this->assertEquals('video', $helper->getPreviewType('test.mp4'));
         $this->assertEquals('video', $helper->getPreviewType('test.webm'));
         $this->assertEquals(null, $helper->getPreviewType('test.doc'));
+        $this->assertEquals('office', $helper->getPreviewType('test.docx'));
+        $this->assertEquals('office', $helper->getPreviewType('test.DOCX'));
+        $this->assertEquals('office', $helper->getPreviewType('test.pptx'));
+        $this->assertEquals('office', $helper->getPreviewType('test.PPTX'));
+        $this->assertNull($helper->getPreviewType('test.ppt'));
     }
 
     public function testGetBrowserViewType()

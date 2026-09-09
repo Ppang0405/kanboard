@@ -34,6 +34,16 @@
                 title="<?= $this->text->e($file['name']) ?>"
                 style="width: 100%; height: 600px; border: 1px solid #dedede; border-radius: 3px; background: #fff;"></iframe>
         <?php endif ?>
+    <?php elseif ($type === 'office'): ?>
+        <?php if (! empty($too_large)): ?>
+            <p><?= t('This file is too large to preview.') ?> <?= $this->url->link(t('Download'), 'FileViewerController', 'download', $params) ?></p>
+        <?php else: ?>
+            <iframe
+                src="<?= $this->url->href('FileViewerController', 'office', $params) ?>"
+                sandbox
+                title="<?= $this->text->e($file['name']) ?>"
+                style="width: 100%; height: 600px; border: 1px solid #dedede; border-radius: 3px; background: #fff;"></iframe>
+        <?php endif ?>
     <?php elseif ($type === 'pdf'): ?>
         <iframe
             src="<?= $this->url->href('FileViewerController', 'browser', $params) ?>"

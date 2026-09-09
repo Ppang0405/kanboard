@@ -40,6 +40,7 @@ class HelperProvider implements ServiceProviderInterface
         $container['helper']->register('mail', '\Kanboard\Helper\MailHelper');
         $container['helper']->register('modal', '\Kanboard\Helper\ModalHelper');
         $container['helper']->register('spreadsheet', '\Kanboard\Helper\SpreadsheetHelper');
+        $container['helper']->register('document', '\Kanboard\Helper\DocumentHelper');
 
         $container['template'] = new Template($container['helper']);
 
