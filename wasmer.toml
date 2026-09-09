@@ -1,11 +1,11 @@
 [package]
 name = "ppang0405/kanboard"
-version = "1.2.65"
+version = "1.2.70"
 description = "Kanboard - Kanban project management software"
 license = "MIT"
 
 [dependencies]
-"php/php" = "=8.3.4"
+"php/php" = "=8.3.403"
 
 [fs]
 "/app/" = "."
