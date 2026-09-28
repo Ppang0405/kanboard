@@ -5,7 +5,7 @@ scaling:
   mode: single_concurrency
 locality:
   regions:
-    - fr-pari1
+    - fr-roub1
 enable_email: true
 capabilities:
   database:
