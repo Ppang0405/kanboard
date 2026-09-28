@@ -30,13 +30,56 @@ class UserModel extends Base
      */
     const EVERYBODY_ID = -1;
 
-    public function isValidSession($userID, $sessionRole)
+    /**
+     * Columns that must never be exposed outside of the application
+     *
+     * @var string[]
+     */
+    const PRIVATE_COLUMNS = array('password', 'twofactor_secret', 'api_access_token', 'token');
+
+    /**
+     * Remove sensitive columns from a user row
+     *
+     * @access public
+     * @param  array $user
+     * @return array
+     */
+    public function removePrivateColumns(array $user)
     {
-        return $this->db->table(self::TABLE)
+        foreach (self::PRIVATE_COLUMNS as $column) {
+            unset($user[$column]);
+        }
+
+        return $user;
+    }
+
+    /**
+     * Check that the session belongs to an active user whose credentials did not change
+     *
+     * The fingerprint is compared strictly: a session without one (created before this
+     * check existed) never matches and is therefore rejected.
+     *
+     * @access public
+     * @param  integer  $userID
+     * @param  string   $sessionRole
+     * @param  string   $credentialsFingerprint
+     * @return boolean
+     */
+    public function isValidSession($userID, $sessionRole, $credentialsFingerprint = '')
+    {
+        $user = $this->db->table(self::TABLE)
+            ->columns('password')
             ->eq('id', $userID)
             ->eq('is_active', 1)
             ->eq('role', $sessionRole)
-            ->exists();
+            ->findOne();
+
+        if (empty($user)) {
+            return false;
+        }
+
+        // Sessions opened before the last password change are no longer valid
+        return $credentialsFingerprint === hash('sha256', (string) $user['password']);
     }
 
     public function has2FA($username)
@@ -306,7 +349,15 @@ class UserModel extends Base
         $updates = $values;
         unset($updates['id']);
         $result = $this->db->table(self::TABLE)->eq('id', $values['id'])->update($updates);
-        $this->userSession->refresh($values['id']);
+
+        // prepare() removed the field if no new password was submitted
+        $passwordChanged = $result && isset($values['password']);
+
+        if ($passwordChanged) {
+            $this->rememberMeSessionModel->removeAll($values['id']);
+        }
+
+        $this->userSession->refresh($values['id'], $passwordChanged);
         return $result;
     }
 
