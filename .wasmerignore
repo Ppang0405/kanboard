@@ -4,3 +4,9 @@
 /data/
 /.git/
 .DS_Store
+# Local notes and tooling at the repo root (the web root) are not app files.
+/.v2c/
+/.video_agent/
+/flue-*.md
+/apply-deepseek-refresh.py
+/deepseek-models-refresh.json
