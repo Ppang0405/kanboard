@@ -153,6 +153,7 @@ class AuthenticationProvider implements ServiceProviderInterface
         $acl->add('BoardViewController', 'readonly', Role::APP_PUBLIC);
         $acl->add('ICalendarController', '*', Role::APP_PUBLIC);
         $acl->add('FeedController', '*', Role::APP_PUBLIC);
+        $acl->add('FileLinkController', array('open'), Role::APP_PUBLIC);
         $acl->add('AvatarFileController', array('show', 'image'), Role::APP_PUBLIC);
         $acl->add('UserInviteController', array('signup', 'register'), Role::APP_PUBLIC);
         $acl->add('CronjobController', array('run'), Role::APP_PUBLIC);

@@ -31,6 +31,9 @@
                                     <?= $this->url->icon('external-link', t('View file'), 'FileViewerController', 'image', array('task_id' => $task['id'], 'file_id' => $file['id'], 'etag' => $file['etag']), false, '', '', true) ?>
                                 </li>
                                 <li>
+                                    <?= $this->url->icon('share-alt', t('Open in new tab'), 'FileLinkController', 'create', array('task_id' => $task['id'], 'file_id' => $file['id']), false, '', t('Shareable link, expires in 1 hour'), true) ?>
+                                </li>
+                                <li>
                                     <?= $this->url->icon('download', t('Download'), 'FileViewerController', 'download', array('task_id' => $task['id'], 'file_id' => $file['id'], 'etag' => $file['etag'])) ?>
                                 </li>
                                 <?php if ($this->user->hasProjectAccess('TaskFileController', 'remove', $task['project_id'])): ?>

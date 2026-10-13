@@ -22,6 +22,11 @@
                                     <?= $this->url->icon('eye', t('View file'), 'FileViewerController', 'browser', array('project_id' => $project['id'], 'file_id' => $file['id']), false, '', '', true) ?>
                                 </li>
                             <?php endif ?>
+                            <?php if ($this->file->getPreviewType($file['name']) === 'html'): ?>
+                                <li>
+                                    <?= $this->url->icon('external-link', t('Open in new tab'), 'FileLinkController', 'create', array('project_id' => $project['id'], 'file_id' => $file['id']), false, '', t('Shareable link, expires in 1 hour'), true) ?>
+                                </li>
+                            <?php endif ?>
                             <li>
                                 <?= $this->url->icon('download', t('Download'), 'FileViewerController', 'download', array('project_id' => $project['id'], 'file_id' => $file['id'], 'etag' => $file['etag'])) ?>
                             </li>

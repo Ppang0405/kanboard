@@ -23,6 +23,9 @@
                                     <?= $this->url->icon('external-link', t('View file'), 'FileViewerController', 'image', array('project_id' => $project['id'], 'file_id' => $file['id'], 'etag' => $file['etag']), false, '', '', true) ?>
                                 </li>
                                 <li>
+                                    <?= $this->url->icon('share-alt', t('Open in new tab'), 'FileLinkController', 'create', array('project_id' => $project['id'], 'file_id' => $file['id']), false, '', t('Shareable link, expires in 1 hour'), true) ?>
+                                </li>
+                                <li>
                                     <?= $this->url->icon('download', t('Download'), 'FileViewerController', 'download', array('project_id' => $project['id'], 'file_id' => $file['id'], 'etag' => $file['etag'])) ?>
                                 </li>
                                 <?php if ($this->user->hasProjectAccess('ProjectFileController', 'remove', $project['id'])): ?>
