@@ -1,0 +1,84 @@
+# Kanboard native Linux Swoole experiment (experimental).
+#
+# Pinned patched native PHP runtime with a pinned compatible maintained
+# Swoole extension. Single synchronous worker, coroutines OFF. Existing
+# Dockerfile/app.yaml/wasmer.toml are unchanged; this file is only used via
+# `docker build -f Dockerfile.swoole` and docker-compose.swoole.yml.
+# The `test` stage adds dev dependencies for native Linux regression runs:
+# `docker build -f Dockerfile.swoole --target test`.
+FROM php:8.3.30-cli-bookworm AS runtime
+
+LABEL org.opencontainers.image.title="Kanboard Swoole experiment" \
+    org.opencontainers.image.description="Experimental native Linux Swoole runtime for Kanboard, not a production migration" \
+    org.opencontainers.image.vendor="Kanboard" \
+    org.opencontainers.image.licenses="MIT"
+
+ENV TZ=UTC \
+    SWOOLE_HOST=0.0.0.0 \
+    SWOOLE_PORT=8080 \
+    COMPOSER_ALLOW_SUPERUSER=1
+
+# Pinned Swoole version, current PECL stable, compatible with PHP 8.3.
+ARG SWOOLE_VERSION=6.2.3
+
+# System libraries plus the PHP extensions missing from the base image but
+# required by app/check_setup.php and the supported database drivers.
+# (The base image already ships curl, dom, fileinfo, mbstring, openssl,
+# pdo_sqlite, session, xml, xmlreader and opcache.) Extension builds use -j2.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        $PHPIZE_DEPS \
+        ca-certificates curl unzip \
+        libcurl4-openssl-dev libfreetype6-dev libjpeg-dev libldap2-dev \
+        libpng-dev libpq-dev libssl-dev libzip-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j2 \
+        bcmath gd ldap pdo_mysql pdo_pgsql sockets zip \
+    && pecl install swoole-${SWOOLE_VERSION} \
+    && docker-php-ext-enable swoole opcache \
+    && pecl clear-cache \
+    && apt-get purge -y --auto-remove $PHPIZE_DEPS \
+    && rm -rf /var/lib/apt/lists/* /tmp/pear
+
+COPY docker/swoole/php.ini $PHP_INI_DIR/conf.d/kanboard-swoole.ini
+
+# Non-root service user; data and plugins stay writable without root.
+RUN useradd --uid 10000 --create-home --shell /bin/false kanboard \
+    && mkdir -p /var/www/app/data /var/www/app/plugins \
+    && chown -R kanboard:kanboard /var/www/app
+
+WORKDIR /var/www/app
+
+# Reproducible dependency install from the unchanged lockfile; vendor/
+# itself is excluded from the build context by Dockerfile.swoole.dockerignore
+# and rebuilt here (composer runs after the full source copy so the
+# classmap paths in composer.json exist during install).
+COPY --from=composer:2.10.3 /usr/bin/composer /usr/bin/composer
+COPY --chown=kanboard:kanboard . /var/www/app
+RUN export COMPOSER_HOME=/tmp/kanboard-composer \
+    && composer install --no-dev --prefer-dist --no-progress --no-interaction --optimize-autoloader \
+    && composer clear-cache \
+    && rm -rf /tmp/kanboard-composer /tmp/composer /usr/bin/composer \
+    && chown -R kanboard:kanboard /var/www/app
+
+USER kanboard
+
+VOLUME ["/var/www/app/data", "/var/www/app/plugins"]
+EXPOSE 8080
+
+HEALTHCHECK --start-period=15s --timeout=5s --retries=3 \
+    CMD curl -f http://127.0.0.1:8080/health || exit 1
+
+ENTRYPOINT ["php", "/var/www/app/docker/swoole/server.php"]
+
+# Native Linux test target: dev dependencies plus the compiled ldap
+# extension above, so the unfiltered SQLite regressions run where the
+# macOS host gaps (symlinked tmp, missing ext-ldap) do not apply.
+FROM runtime AS test
+USER root
+COPY --from=composer:2.10.3 /usr/bin/composer /usr/bin/composer
+RUN export COMPOSER_HOME=/tmp/kanboard-composer-test \
+    && composer install --prefer-dist --no-progress --no-interaction --optimize-autoloader \
+    && composer clear-cache \
+    && rm -rf /tmp/kanboard-composer-test /tmp/composer /usr/bin/composer \
+    && chown -R kanboard:kanboard /var/www/app
+USER kanboard

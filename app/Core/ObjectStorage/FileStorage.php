@@ -53,6 +53,23 @@ class FileStorage implements ObjectStorageInterface
     }
 
     /**
+     * Return the validated real path of a stored object without reading it.
+     *
+     * Lets transports stream authorized downloads directly instead of
+     * buffering the whole file. Read-only: traversal and symlink escapes
+     * are rejected exactly like get() and output().
+     *
+     * @access public
+     * @throws ObjectStorageException
+     * @param  string  $key
+     * @return string
+     */
+    public function getPath($key)
+    {
+        return $this->getRealFilePath($key);
+    }
+
+    /**
      * Save object
      *
      * @access public

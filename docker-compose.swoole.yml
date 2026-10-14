@@ -1,0 +1,51 @@
+# Experimental native Linux Swoole stack (foundation stage).
+# Isolated volumes (swoole-*); never mounts the original ./data directory.
+# Build with: docker compose -f docker-compose.swoole.yml up --build
+name: kanboard-swoole
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.swoole
+      target: runtime
+    image: kanboard-swoole:integration
+    container_name: kanboard-swoole-app
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${SWOOLE_HOST_PORT:-8080}:8080"
+    environment:
+      TZ: UTC
+      DATABASE_URL: mysql://kanboard:kanboard-secret@db/kanboard
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - swoole-data:/var/www/app/data
+      - swoole-plugins:/var/www/app/plugins
+
+  db:
+    image: mariadb:11.4
+    container_name: kanboard-swoole-db
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: kanboard
+      MYSQL_USER: kanboard
+      MYSQL_PASSWORD: kanboard-secret
+    volumes:
+      - swoole-db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  swoole-data:
+    driver: local
+  swoole-plugins:
+    driver: local
+  swoole-db:
+    driver: local

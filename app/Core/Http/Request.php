@@ -24,6 +24,7 @@ class Request extends Base
     private $post;
     private $files;
     private $cookies;
+    private $rawBody = null;
 
     /**
      * Constructor
@@ -35,15 +36,19 @@ class Request extends Base
      * @param array $post
      * @param array $files
      * @param array $cookies
+     * @param bool  $isolated  When true, empty bags stay empty instead of
+     *                         falling back to superglobals. Long-running
+     *                         workers must pass true so one request can
+     *                         never observe a previous request's globals.
      */
-    public function __construct(Container $container, array $server = array(), array $get = array(), array $post = array(), array $files = array(), array $cookies = array())
+    public function __construct(Container $container, array $server = array(), array $get = array(), array $post = array(), array $files = array(), array $cookies = array(), $isolated = false)
     {
         parent::__construct($container);
-        $this->server = empty($server) ? $_SERVER : $server;
-        $this->get = empty($get) ? $_GET : $get;
-        $this->post = empty($post) ? $_POST : $post;
-        $this->files = empty($files) ? $_FILES : $files;
-        $this->cookies = empty($cookies) ? $_COOKIE : $cookies;
+        $this->server = empty($server) && ! $isolated ? $_SERVER : $server;
+        $this->get = empty($get) && ! $isolated ? $_GET : $get;
+        $this->post = empty($post) && ! $isolated ? $_POST : $post;
+        $this->files = empty($files) && ! $isolated ? $_FILES : $files;
+        $this->cookies = empty($cookies) && ! $isolated ? $_COOKIE : $cookies;
     }
 
     /**
@@ -133,6 +138,22 @@ class Request extends Base
     }
 
     /**
+     * Override the raw body of the HTTP request.
+     *
+     * Long-running workers inject the body captured from their own
+     * transport so getBody() never touches php://input.
+     *
+     * @access public
+     * @param  string $body
+     * @return $this
+     */
+    public function setBody($body)
+    {
+        $this->rawBody = $body;
+        return $this;
+    }
+
+    /**
      * Get the raw body of the HTTP request
      *
      * @access public
@@ -140,6 +161,10 @@ class Request extends Base
      */
     public function getBody()
     {
+        if ($this->rawBody !== null) {
+            return $this->rawBody;
+        }
+
         return file_get_contents('php://input');
     }
 
