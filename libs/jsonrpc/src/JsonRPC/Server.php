@@ -119,9 +119,13 @@ class Server
     /**
      * Constructor
      *
+     * A null request body keeps the legacy behavior (read php://input).
+     * Any string, including an empty one, is decoded directly so transports
+     * that capture the body themselves never touch php://input.
+     *
      * @access public
-     * @param  string              $request
-     * @param  array               $server
+     * @param  string|null         $request
+     * @param  array|null          $server
      * @param  ResponseBuilder     $responseBuilder
      * @param  RequestParser       $requestParser
      * @param  BatchRequestParser  $batchRequestParser
@@ -129,21 +133,21 @@ class Server
      * @param  MiddlewareHandler   $middlewareHandler
      */
     public function __construct(
-        $request = '',
-        array $server = array(),
+        $request = null,
+        ?array $server = null,
         ?ResponseBuilder $responseBuilder = null,
         ?RequestParser $requestParser = null,
         ?BatchRequestParser $batchRequestParser = null,
         ?ProcedureHandler $procedureHandler = null,
         ?MiddlewareHandler $middlewareHandler = null
     ) {
-        if ($request !== '') {
-            $this->payload = json_decode($request, true);
-        } else {
+        if ($request === null) {
             $this->payload = json_decode(file_get_contents('php://input'), true);
+        } else {
+            $this->payload = json_decode($request, true);
         }
 
-        $this->serverVariable = $server ?: $_SERVER;
+        $this->serverVariable = $server ?? $_SERVER;
         $this->responseBuilder = $responseBuilder ?: ResponseBuilder::create();
         $this->requestParser = $requestParser ?: RequestParser::create();
         $this->batchRequestParser = $batchRequestParser ?: BatchRequestParser::create();

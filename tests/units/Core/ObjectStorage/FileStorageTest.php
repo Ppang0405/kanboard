@@ -141,4 +141,28 @@ class FileStorageTest extends Base
         $this->assertEquals($this->tempDir . DIRECTORY_SEPARATOR . 'subdir' . DIRECTORY_SEPARATOR . 'file.txt', $this->storage->getSanitizedFilePath('subdir/file.txt'));
         $this->assertEquals($this->tempDir . DIRECTORY_SEPARATOR . 'file.txt', $this->storage->getSanitizedFilePath('file.txt'));
     }
+
+    public function testSiblingPrefixOutsideBaseDirIsRejected()
+    {
+        // A sibling directory sharing the base name prefix (e.g.
+        // /data/files_evil vs /data/files) must not satisfy the
+        // base-directory check, even via a symlink pointing at it.
+        $siblingDir = $this->tempDir . '_evil';
+        mkdir($siblingDir);
+        file_put_contents($siblingDir . DIRECTORY_SEPARATOR . 'evil.txt', 'evil');
+
+        $link = $this->tempDir . DIRECTORY_SEPARATOR . 'sibling-link';
+        symlink($siblingDir . DIRECTORY_SEPARATOR . 'evil.txt', $link);
+
+        try {
+            $this->storage->get('sibling-link');
+            $this->fail('Sibling-prefix escape must be rejected');
+        } catch (ObjectStorageException $e) {
+            $this->assertNotEmpty($e->getMessage());
+        } finally {
+            unlink($link);
+            unlink($siblingDir . DIRECTORY_SEPARATOR . 'evil.txt');
+            rmdir($siblingDir);
+        }
+    }
 }

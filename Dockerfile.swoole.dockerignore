@@ -1,0 +1,46 @@
+# Dedicated build context for Dockerfile.swoole.
+# Docker uses this file automatically when building with `-f Dockerfile.swoole`.
+#
+# Difference from the root .dockerignore: composer.json, composer.lock and the
+# JS/CSS assets stay IN the context (reproducible install plus a working UI),
+# while Wasmer config, deployment descriptors and local data stay OUT.
+.git
+.github
+.vscode
+.idea
+.DS_Store
+*.md
+ChangeLog
+Makefile
+Vagrantfile
+web.config
+.dockerignore
+*.dockerignore
+Dockerfile
+docker-compose*.yml
+custom-hooks
+tests
+docs
+plugins/*
+data/*
+
+# Rebuilt inside the image from the unchanged lockfile.
+vendor/
+
+# Wasmer Edge bridge (live DB credentials, mail secrets), deployment
+# descriptors and local environment files are never part of the image.
+config.php
+wasmer.toml
+app.yaml
+.env*
+
+# Legacy container layers; only docker/swoole belongs in this image.
+docker/etc
+docker/usr
+docker/var
+
+# Stray local databases, never baked into the image.
+*.sqlite
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal

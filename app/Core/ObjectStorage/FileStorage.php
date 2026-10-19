@@ -53,6 +53,23 @@ class FileStorage implements ObjectStorageInterface
     }
 
     /**
+     * Return the validated real path of a stored object without reading it.
+     *
+     * Lets transports stream authorized downloads directly instead of
+     * buffering the whole file. Read-only: traversal and symlink escapes
+     * are rejected exactly like get() and output().
+     *
+     * @access public
+     * @throws ObjectStorageException
+     * @param  string  $key
+     * @return string
+     */
+    public function getPath($key)
+    {
+        return $this->getRealFilePath($key);
+    }
+
+    /**
      * Save object
      *
      * @access public
@@ -190,7 +207,11 @@ class FileStorage implements ObjectStorageInterface
 
     private function validateBasePath(string $filePath)
     {
-        if (strpos($filePath, $this->baseDir) !== 0) {
+        // Trailing separator: a sibling prefix such as /data/files_evil
+        // must not satisfy a base directory of /data/files.
+        $base = rtrim($this->baseDir, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
+
+        if (strpos($filePath, $base) !== 0) {
             throw new ObjectStorageException('File '.$filePath.' is not in base directory: '.$this->baseDir);
         }
     }

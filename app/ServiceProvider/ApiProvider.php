@@ -2,6 +2,7 @@
 
 namespace Kanboard\ServiceProvider;
 
+use JsonRPC\Response\ResponseBuilder;
 use JsonRPC\Server;
 use Kanboard\Api\Procedure\ActionProcedure;
 use Kanboard\Api\Procedure\AppProcedure;
@@ -48,42 +49,57 @@ class ApiProvider implements ServiceProviderInterface
      */
     public function register(Container $container)
     {
-        $server = new Server();
-        $server->setAuthenticationHeader(API_AUTHENTICATION_HEADER);
-        $server->getMiddlewareHandler()
-            ->withMiddleware(new AuthenticationMiddleware($container))
-        ;
+        // Optional per-request injection for transports that capture the
+        // body, server variables and response builder themselves. Absent
+        // keys keep the legacy behavior: null body (php://input),
+        // superglobal server variables and the default response builder.
+        // Shared (not factory): on a fresh per-request container the
+        // injection above is set before the first access, so one Server
+        // instance serves the whole request. A null server-vars default
+        // keeps the legacy $_SERVER fallback; an explicitly injected
+        // empty array must stay empty and never fall back to globals.
+        $container['api'] = function ($c) {
+            $requestBody = isset($c['apiRequestBody']) ? $c['apiRequestBody'] : null;
+            $serverVars = isset($c['apiServerVars']) ? $c['apiServerVars'] : null;
+            $responseBuilder = isset($c['apiResponseBuilder']) ? $c['apiResponseBuilder'] : ResponseBuilder::create();
+            $server = new Server($requestBody, $serverVars, $responseBuilder);
+            $server->setAuthenticationHeader(API_AUTHENTICATION_HEADER);
+            $server->getMiddlewareHandler()
+                ->withMiddleware(new AuthenticationMiddleware($c))
+            ;
 
-        $server->getProcedureHandler()
-            ->withObject(new MeProcedure($container))
-            ->withObject(new ActionProcedure($container))
-            ->withObject(new AppProcedure($container))
-            ->withObject(new BoardProcedure($container))
-            ->withObject(new ColumnProcedure($container))
-            ->withObject(new CategoryProcedure($container))
-            ->withObject(new CommentProcedure($container))
-            ->withObject(new TaskFileProcedure($container))
-            ->withObject(new ProjectFileProcedure($container))
-            ->withObject(new LinkProcedure($container))
-            ->withObject(new ProjectProcedure($container))
-            ->withObject(new ProjectPermissionProcedure($container))
-            ->withObject(new ProjectMetadataProcedure($container))
-            ->withObject(new SubtaskProcedure($container))
-            ->withObject(new SubtaskTimeTrackingProcedure($container))
-            ->withObject(new SwimlaneProcedure($container))
-            ->withObject(new TaskProcedure($container))
-            ->withObject(new TaskLinkProcedure($container))
-            ->withObject(new TaskExternalLinkProcedure($container))
-            ->withObject(new TaskMetadataProcedure($container))
-            ->withObject(new TaskTagProcedure($container))
-            ->withObject(new UserProcedure($container))
-            ->withObject(new GroupProcedure($container))
-            ->withObject(new GroupMemberProcedure($container))
-            ->withObject(new TagProcedure($container))
-            ->withBeforeMethod('beforeProcedure')
-        ;
+            $server->getProcedureHandler()
+                ->withObject(new MeProcedure($c))
+                ->withObject(new ActionProcedure($c))
+                ->withObject(new AppProcedure($c))
+                ->withObject(new BoardProcedure($c))
+                ->withObject(new ColumnProcedure($c))
+                ->withObject(new CategoryProcedure($c))
+                ->withObject(new CommentProcedure($c))
+                ->withObject(new TaskFileProcedure($c))
+                ->withObject(new ProjectFileProcedure($c))
+                ->withObject(new LinkProcedure($c))
+                ->withObject(new ProjectProcedure($c))
+                ->withObject(new ProjectPermissionProcedure($c))
+                ->withObject(new ProjectMetadataProcedure($c))
+                ->withObject(new SubtaskProcedure($c))
+                ->withObject(new SubtaskTimeTrackingProcedure($c))
+                ->withObject(new SwimlaneProcedure($c))
+                ->withObject(new TaskProcedure($c))
+                ->withObject(new TaskLinkProcedure($c))
+                ->withObject(new TaskExternalLinkProcedure($c))
+                ->withObject(new TaskMetadataProcedure($c))
+                ->withObject(new TaskTagProcedure($c))
+                ->withObject(new UserProcedure($c))
+                ->withObject(new GroupProcedure($c))
+                ->withObject(new GroupMemberProcedure($c))
+                ->withObject(new TagProcedure($c))
+                ->withBeforeMethod('beforeProcedure')
+            ;
 
-        $container['api'] = $server;
+            return $server;
+        };
+
         return $container;
     }
 }

@@ -17,6 +17,7 @@ class Response extends Base
     private $httpHeaders = array();
     private $httpBody = '';
     private $responseSent = false;
+    private $captureOnly = false;
 
     /**
      * Return true if the response have been sent to the user agent
@@ -205,6 +206,65 @@ class Response extends Base
     }
 
     /**
+     * Record the response without emitting it through the SAPI layer.
+     *
+     * Long-running workers enable capture and forward the recorded
+     * status, headers and body through their own transport instead.
+     *
+     * @access public
+     * @return $this
+     */
+    public function capture()
+    {
+        $this->captureOnly = true;
+        return $this;
+    }
+
+    /**
+     * Return true when the response is recorded instead of emitted
+     *
+     * @access public
+     * @return bool
+     */
+    public function isCaptureEnabled()
+    {
+        return $this->captureOnly;
+    }
+
+    /**
+     * Get recorded HTTP status code
+     *
+     * @access public
+     * @return integer
+     */
+    public function getStatusCode()
+    {
+        return $this->httpStatusCode;
+    }
+
+    /**
+     * Get recorded HTTP headers
+     *
+     * @access public
+     * @return array
+     */
+    public function getHeaders()
+    {
+        return $this->httpHeaders;
+    }
+
+    /**
+     * Get recorded HTTP body
+     *
+     * @access public
+     * @return string
+     */
+    public function getBody()
+    {
+        return $this->httpBody;
+    }
+
+    /**
      * Send headers and body
      *
      * @access public
@@ -212,6 +272,10 @@ class Response extends Base
     public function send()
     {
         $this->responseSent = true;
+
+        if ($this->captureOnly) {
+            return;
+        }
 
         if ($this->httpStatusCode !== 200) {
             header('Status: '.$this->httpStatusCode);
@@ -298,6 +362,15 @@ class Response extends Base
     {
         $this->withoutCache();
         $this->withContentType('text/csv; charset=utf-8');
+
+        if ($this->captureOnly) {
+            ob_start();
+            Csv::output($data, $addBOM);
+            $this->withBody((string) ob_get_clean());
+            $this->send();
+            return;
+        }
+
         $this->send();
         Csv::output($data, $addBOM);
     }
