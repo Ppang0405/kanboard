@@ -108,7 +108,11 @@ docker compose -f docker-compose.swoole.yml down -v  # also drops the isolated v
 ```
 
 The published port binds loopback only (`127.0.0.1`, never all
-interfaces); override the host side with `SWOOLE_HOST_PORT`. Ordering:
+interfaces); override the host side with `SWOOLE_HOST_PORT`. Overriding
+`SWOOLE_PORT` changes both the container listen port (the server and
+the image healthcheck follow it) and the published mapping's container
+side, so point any HTTP test base URL at that port when testing it.
+Ordering:
 the `db` service must be healthy before `app` starts (`depends_on` with
 `service_healthy`).
 
@@ -171,6 +175,9 @@ docker run --rm --network kbverify_default --entrypoint php \
   vendor/bin/phpunit --bootstrap vendor/autoload.php --do-not-cache-result \
   tests/integration/swoole
 docker compose -p kbverify -f docker-compose.swoole.yml down -v
+# Restore the main stack afterwards:
+docker compose -f docker-compose.swoole.yml up --build -d
+curl -f http://127.0.0.1:8080/health
 ```
 
 Always verify HTTP runs on a fresh database: reusing a stale volume
@@ -202,10 +209,10 @@ local-only DB credentials.
 
 ## Tested platforms
 
-- Tested: Linux/arm64 via local Docker — full HTTP matrix over MySQL
-  (21 tests, 89 assertions, exit 0) plus the unfiltered SQLite unit suite
-  in the native test target (1312 tests, 181400 assertions, exit 0, one
-  pre-existing fixture warning; exact log is kept with the release
-  evidence). Schema verified at 139/139.
+- Tested: Linux/arm64 via local Docker — full HTTP matrix over MariaDB
+  11.4.13 (MySQL-compatible) (21 tests, 89 assertions, exit 0) plus the
+  unfiltered SQLite unit suite in the native test target (1341 tests,
+  181505 assertions, exit 0, one pre-existing fixture warning; exact log
+  is kept with the release evidence). Schema verified at 139/139.
 - Untested: Linux/amd64 (base images are multi-arch in principle; no
   amd64 run is claimed and none is implied).
