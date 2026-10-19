@@ -12,6 +12,9 @@ deployment are unchanged.
   CLI; re-pinned 8.2.28 -> 8.3.26 -> 8.3.28 -> 8.3.30 as supported patches
   were verified on Docker Hub (arm64 manifests) plus php.net
   distribution tarballs).
+- Tag-pinned, not digest-pinned: `php:8.3.30-cli-bookworm`,
+  `mariadb:11.4.13` and the `composer:2.10.3` build image are the tested
+  snapshot for this experiment, not immutable guarantees.
 - Swoole: `6.2.3` via PECL (`SWOOLE_VERSION` build arg), the PECL stable
   at build time (released 2026-09-22), verified against PHP 8.3 at build
   and runtime. These pins are the tested snapshot for this experiment,
@@ -35,7 +38,7 @@ deployment are unchanged.
   local config files, constants, setup checks). Second calls are no-ops,
   so a long-running worker never re-runs `define()` or setup.
 - `app/Swoole/ContainerFactory.php`: fresh Pimple container plus the same
-  24 providers per request. `app/common.php` is a minimal hook over both,
+  25 providers per request. `app/common.php` is a minimal hook over both,
   so legacy `index.php`/`jsonrpc.php`/`cli`/`healthcheck.php` behave as before.
 - `docker/swoole/server.php` (wiring entrypoint only): one-time bootstrap,
   one fresh container per request, dispatch through `SwooleRouter`, 500 on
@@ -66,6 +69,10 @@ deployment are unchanged.
   (read-only); `ApiProvider` lazy `api` service with body/server injection;
   `JsonRPC\Server` null-body keeps `php://input`, any string decodes
   directly. Legacy defaults are intact.
+- Plugin PHP code loads through the same `PluginProvider`, but
+  `/plugins/*/Assets/...` URLs are NOT served: the static responder only
+  allowlists `/assets/*`, `/favicon.ico` and `/robots.txt`, so plugin web
+  assets return 404 under this experiment.
 - `app/Swoole/SwooleSession.php`: native session adaptation. Binds only
   this request's `KB_SID` cookie (malformed ids rejected, unknown ids start
   empty under strict mode and rotate at login), emits the final id plus
@@ -103,18 +110,28 @@ docker compose -f docker-compose.swoole.yml down -v  # also drops the isolated v
 The published port binds loopback only (`127.0.0.1`, never all
 interfaces); override the host side with `SWOOLE_HOST_PORT`. Ordering:
 the `db` service must be healthy before `app` starts (`depends_on` with
-`service_healthy`), and migrations run automatically on first container
-creation (`DB_RUN_MIGRATIONS`, default true) — verified at schema
-version 139/139 against MariaDB 11.4.
+`service_healthy`).
+
+There is no container-entrypoint migration step: every request builds a
+fresh container, and `DatabaseProvider` runs a schema check on each one,
+so the first request after an upgrade performs the migration
+(`DB_RUN_MIGRATIONS`, default true) — verified at schema version
+139/139 against MariaDB 11.4. Prefer to migrate before traffic instead:
+`docker compose -f docker-compose.swoole.yml exec app php cli db:migrate`.
 
 Health check inside the image polls `GET /health`; `/health` returns 200
 only when a fresh container and a live `SELECT 1` both succeed, otherwise
-500 (bounded failure signal, no automatic write retry).
+500 (bounded failure signal, no automatic write retry). The image
+healthcheck follows `SWOOLE_PORT`:
+`curl -fsS "http://127.0.0.1:${SWOOLE_PORT:-8080}/health"`.
 
 ## Environment / secrets / volumes
 
 - `DATABASE_URL` (default `mysql://kanboard:kanboard-secret@db/kanboard`),
   `TZ`, `SWOOLE_HOST`, `SWOOLE_PORT`, `SWOOLE_MAX_REQUEST`.
+- The compose `MYSQL_*` / `DATABASE_URL` credentials are local-only
+  defaults for an isolated dev stack. Override them (environment or
+  secrets management) before exposing anything beyond loopback.
 - Never baked into the image: `config.php`, `wasmer.toml`, `app.yaml`,
   `data/`, `.env*` files, local sqlite files. The Wasmer `config.php`
   (live DB credentials, mail secrets) stays out via
@@ -124,10 +141,50 @@ only when a fresh container and a live `SELECT 1` both succeed, otherwise
 - Fresh isolated volumes `swoole-data`, `swoole-plugins`, `swoole-db`;
   the stack never mounts the original `./data` directory.
 
+## Worker reload guidance
+
+- OPcache runs with `validate_timestamps = 0`, so PHP file changes take
+  effect only after a restart (`docker compose -f docker-compose.swoole.yml
+  restart app` or a fresh `up --build`).
+- `SWOOLE_MAX_REQUEST=N` recycles the single worker after N requests
+  (0 = never); use it to bound worker lifetime, not to pick up code
+  changes.
+
+## Test recipe (verified)
+
+```sh
+# Unit suite in the native test target (exact, from the repo root):
+docker build -f Dockerfile.swoole --target test -t kanboard-swoole:test .
+docker run --rm --entrypoint php \
+  -v "$PWD/tests:/var/www/app/tests:ro" kanboard-swoole:test \
+  vendor/bin/phpunit -c tests/units.sqlite.xml --do-not-cache-result
+
+# HTTP suite against a FRESH database on a separate compose project
+# (never against a restored/production volume):
+docker compose -f docker-compose.swoole.yml down  # keep volumes of the main stack
+SWOOLE_HOST_PORT=18081 docker compose -p kbverify -f docker-compose.swoole.yml up --build -d
+# confirm kbverify_swoole-* mounts and that kanboard-swoole_swoole-* are untouched,
+# wait for /health, then:
+docker run --rm --network kbverify_default --entrypoint php \
+  -v "$PWD/tests:/var/www/app/tests:ro" \
+  -e SWOOLE_BASE_URL=http://app:8080 kanboard-swoole:test \
+  vendor/bin/phpunit --bootstrap vendor/autoload.php --do-not-cache-result \
+  tests/integration/swoole
+docker compose -p kbverify -f docker-compose.swoole.yml down -v
+```
+
+Always verify HTTP runs on a fresh database: reusing a stale volume
+whose admin account is locked (or whose password differs) surfaces as
+login/auth failures, not as product bugs. Tear the `kbverify` project
+down with `down -v` afterwards so the next run starts fresh.
+
 ## Migration ordering / scheduler CLI
 
-Database migrations run automatically on container creation
-(`DB_RUN_MIGRATIONS`, default true), same as legacy. The scheduler CLI
+Database migrations run as a per-request `DatabaseProvider` schema check
+(same legacy `DB_RUN_MIGRATIONS`, default true): the first request after
+an upgrade performs the migration. Prefer to migrate before traffic:
+`docker compose -f docker-compose.swoole.yml exec app php cli db:migrate`.
+The scheduler CLI
 runs out of band against the same environment and database, e.g.
 `docker compose -f docker-compose.swoole.yml exec app php cli cronjob`
 (`cli db:version` verified working inside the image); no separate
@@ -137,14 +194,18 @@ scheduler service is added by this experiment.
 
 Not terminated in this image (plain HTTP on 8080). Terminate TLS at a
 reverse proxy and set `TRUSTED_PROXY_HEADERS`/`TRUSTED_PROXY_NETWORKS`
-when proxying. Reverse-proxy auth rules (`REVERSE_PROXY_AUTH` requires
+when proxying (client IPs and `X-Forwarded-Proto` are honored only from
+trusted networks). Reverse-proxy auth rules (`REVERSE_PROXY_AUTH` requires
 `TRUSTED_PROXY_NETWORKS`) are enforced by `app/check_setup.php` at boot.
+Never expose this experimental stack without overriding the default
+local-only DB credentials.
 
 ## Tested platforms
 
 - Tested: Linux/arm64 via local Docker — full HTTP matrix over MySQL
-  (21 tests) plus the unfiltered SQLite unit suite in the native test
-  target (1312 tests, 181400 assertions, exit 0, one pre-existing
-  fixture warning; exact log is kept with the release evidence).
+  (21 tests, 89 assertions, exit 0) plus the unfiltered SQLite unit suite
+  in the native test target (1312 tests, 181400 assertions, exit 0, one
+  pre-existing fixture warning; exact log is kept with the release
+  evidence). Schema verified at 139/139.
 - Untested: Linux/amd64 (base images are multi-arch in principle; no
   amd64 run is claimed and none is implied).
