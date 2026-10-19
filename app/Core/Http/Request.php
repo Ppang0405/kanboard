@@ -149,7 +149,7 @@ class Request extends Base
      */
     public function setBody($body)
     {
-        $this->rawBody = $body;
+        $this->rawBody = (string) $body;
         return $this;
     }
 

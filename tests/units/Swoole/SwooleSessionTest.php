@@ -26,6 +26,17 @@ class SwooleSessionTest extends TestCase
         $_SESSION = array();
     }
 
+    private function findCookieOrNull(array $cookies, $name)
+    {
+        foreach ($cookies as $cookie) {
+            if ($cookie['name'] === $name) {
+                return $cookie;
+            }
+        }
+
+        return null;
+    }
+
     public function testBindAdoptsWellFormedIncomingId()
     {
         SwooleSession::bind(array('KB_SID' => 'abc123XYZ'));
@@ -116,12 +127,60 @@ class SwooleSessionTest extends TestCase
         $container['sessionManager']->open();
         $this->assertSame(1, $_SESSION['user']['id']);
         $container['sessionManager']->close();
+        // The router attaches this listener per request; the unit call
+        // below stands in for that wiring.
+        SwooleSession::markDestroyed();
 
         $cookies = SwooleSession::finalize(array('KB_SID' => $issuedId), array());
         $sessionCookie = $this->findCookie($cookies, 'KB_SID');
 
         $this->assertSame('', $sessionCookie['value']);
         $this->assertLessThan(time(), $sessionCookie['expires']);
+    }
+
+    public function testNeverStartedSessionEmitsNoSessionCookieButForwardsRememberMe()
+    {
+        $pending = array(
+            array('name' => 'KB_RM', 'value' => 'token-abc|seq-123', 'expires' => time() + 3600, 'path' => '/', 'domain' => '', 'secure' => false, 'httponly' => true, 'samesite' => ''),
+        );
+
+        // No session was ever started and none was destroyed: not even an
+        // incoming id may produce a session or deletion cookie.
+        SwooleSession::bind(array('KB_SID' => 'some-previous-id'));
+        $cookies = SwooleSession::finalize(array('KB_SID' => 'some-previous-id'), $pending);
+
+        $this->assertNull($this->findCookieOrNull($cookies, 'KB_SID'));
+        $this->assertSame('token-abc|seq-123', $this->findCookie($cookies, 'KB_RM')['value']);
+
+        // Same when there is no incoming id at all.
+        SwooleSession::bind(array());
+        $cookies = SwooleSession::finalize(array(), $pending);
+
+        $this->assertNull($this->findCookieOrNull($cookies, 'KB_SID'));
+        $this->assertCount(1, $cookies);
+    }
+
+    public function testActiveSessionCookieUsesAbsoluteExpiry()
+    {
+        // Cookie parameters cannot change while a session is active, so
+        // set a positive lifetime before starting the session directly.
+        SwooleSession::bind(array());
+        session_set_cookie_params(3600, '/', '', false, true);
+        session_name('KB_SID');
+        session_start();
+        $_SESSION['user'] = array('id' => 1);
+
+        // A positive lifetime is a duration: the emitted expiry must be
+        // an absolute timestamp, not the raw duration (which would read
+        // as already expired in 1970).
+        $before = time();
+        $cookies = SwooleSession::finalize(array(), array());
+        $sessionCookie = $this->findCookie($cookies, 'KB_SID');
+
+        $this->assertGreaterThanOrEqual($before + 3600, $sessionCookie['expires']);
+        $this->assertLessThanOrEqual(time() + 3600, $sessionCookie['expires']);
+
+        session_set_cookie_params(0);
     }
 
     #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]

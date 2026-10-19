@@ -53,11 +53,14 @@ class ApiProvider implements ServiceProviderInterface
         // body, server variables and response builder themselves. Absent
         // keys keep the legacy behavior: null body (php://input),
         // superglobal server variables and the default response builder.
-        // Built lazily so per-request values can be set after the container
-        // itself is created.
-        $container['api'] = $container->factory(function ($c) {
+        // Shared (not factory): on a fresh per-request container the
+        // injection above is set before the first access, so one Server
+        // instance serves the whole request. A null server-vars default
+        // keeps the legacy $_SERVER fallback; an explicitly injected
+        // empty array must stay empty and never fall back to globals.
+        $container['api'] = function ($c) {
             $requestBody = isset($c['apiRequestBody']) ? $c['apiRequestBody'] : null;
-            $serverVars = isset($c['apiServerVars']) ? $c['apiServerVars'] : array();
+            $serverVars = isset($c['apiServerVars']) ? $c['apiServerVars'] : null;
             $responseBuilder = isset($c['apiResponseBuilder']) ? $c['apiResponseBuilder'] : ResponseBuilder::create();
             $server = new Server($requestBody, $serverVars, $responseBuilder);
             $server->setAuthenticationHeader(API_AUTHENTICATION_HEADER);
@@ -95,7 +98,7 @@ class ApiProvider implements ServiceProviderInterface
             ;
 
             return $server;
-        });
+        };
 
         return $container;
     }

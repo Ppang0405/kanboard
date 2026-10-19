@@ -1,6 +1,13 @@
 # Experimental native Linux Swoole stack (foundation stage).
 # Isolated volumes (swoole-*); never mounts the original ./data directory.
 # Build with: docker compose -f docker-compose.swoole.yml up --build
+#
+# Image tags below are tag-pinned, not digest-pinned: the tested snapshot
+# for this experiment, not an immutable guarantee. Refresh to
+# then-current security patches before any actual deployment.
+#
+# DB credentials below are local-only defaults for an isolated dev stack.
+# Override them (environment or secrets) before exposing anything.
 name: kanboard-swoole
 
 services:
@@ -25,7 +32,7 @@ services:
       - swoole-plugins:/var/www/app/plugins
 
   db:
-    image: mariadb:11.4
+    image: mariadb:11.4.13
     container_name: kanboard-swoole-db
     restart: unless-stopped
     command: --default-authentication-plugin=mysql_native_password

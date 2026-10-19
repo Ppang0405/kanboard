@@ -8,6 +8,17 @@ class SwooleSession
     const ID_PATTERN = '/^[a-zA-Z0-9,-]{1,128}$/';
 
     /**
+     * True once this request destroyed its session (logout path).
+     *
+     * Set through the SessionManager::EVENT_DESTROY listener the router
+     * attaches per request; session_status() alone cannot tell a
+     * destroyed session apart from one that was never started.
+     *
+     * @var bool
+     */
+    private static $destroyed = false;
+
+    /**
      * Bind this request's session cookie before dispatch.
      *
      * Closes a leaked active session, clears worker-global session data and
@@ -24,9 +35,22 @@ class SwooleSession
 
         $_SESSION = array();
         header_remove();
+        self::$destroyed = false;
 
         $id = isset($cookies[self::COOKIE_NAME]) ? $cookies[self::COOKIE_NAME] : '';
         session_id(is_string($id) && preg_match(self::ID_PATTERN, $id) ? $id : '');
+    }
+
+    /**
+     * Record that this request destroyed its session.
+     *
+     * Called by the SessionManager::EVENT_DESTROY listener so finalize()
+     * can emit the deletion cookie for a destroyed session while staying
+     * silent for a session that was never started.
+     */
+    public static function markDestroyed()
+    {
+        self::$destroyed = true;
     }
 
     /**
@@ -48,11 +72,12 @@ class SwooleSession
      */
     public static function finalize(array $incomingCookies, array $pendingCookies)
     {
-        $destroyed = session_status() !== PHP_SESSION_ACTIVE;
-        $id = $destroyed ? '' : session_id();
+        $active = session_status() === PHP_SESSION_ACTIVE;
+        $destroyed = self::$destroyed;
+        $id = $active ? session_id() : '';
         $writeFailed = false;
 
-        if (! $destroyed) {
+        if ($active) {
             set_error_handler(function () use (&$writeFailed) {
                 $writeFailed = true;
                 return true;
@@ -72,20 +97,23 @@ class SwooleSession
         }
 
         $params = session_get_cookie_params();
+        // A zero lifetime is a browser-session cookie; a positive one is
+        // a duration in seconds, so emit the absolute expiry timestamp.
+        $expires = (int) $params['lifetime'] > 0 ? time() + (int) $params['lifetime'] : 0;
         $cookies = array();
 
-        if ($id !== '') {
+        if ($active && $id !== '') {
             $cookies[] = array(
                 'name' => self::COOKIE_NAME,
                 'value' => $id,
-                'expires' => (int) $params['lifetime'],
+                'expires' => $expires,
                 'path' => $params['path'] !== '' ? $params['path'] : '/',
                 'domain' => $params['domain'],
                 'secure' => (bool) $params['secure'],
                 'httponly' => (bool) $params['httponly'],
                 'samesite' => ini_get('session.cookie_samesite') ?: '',
             );
-        } elseif (isset($incomingCookies[self::COOKIE_NAME]) && $incomingCookies[self::COOKIE_NAME] !== '') {
+        } elseif ($destroyed && isset($incomingCookies[self::COOKIE_NAME]) && $incomingCookies[self::COOKIE_NAME] !== '') {
             $cookies[] = array(
                 'name' => self::COOKIE_NAME,
                 'value' => '',

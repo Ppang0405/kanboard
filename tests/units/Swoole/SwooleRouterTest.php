@@ -130,6 +130,42 @@ class SwooleRouterTest extends TestCase
         $this->assertNull($engine->sentFile);
     }
 
+    public function testStaticHeadRespondsHeadersOnlyWithoutBody()
+    {
+        $engine = new SwooleResponseDouble();
+        SwooleStaticResponder::respond($engine, '/assets/js/app.min.js', true);
+
+        $this->assertSame(200, $engine->statusCode);
+        $this->assertStringContainsString('javascript', $engine->headers['Content-Type']);
+        $this->assertSame('public, max-age=86400', $engine->headers['Cache-Control']);
+        $this->assertSame((string) filesize(ROOT_DIR.'/assets/js/app.min.js'), $engine->headers['Content-Length']);
+        $this->assertSame('', $engine->endedBody);
+        $this->assertNull($engine->sentFile);
+    }
+
+    public function testStaticGetStillStreamsFile()
+    {
+        $engine = new SwooleResponseDouble();
+        SwooleStaticResponder::respond($engine, '/assets/js/app.min.js', false);
+
+        $this->assertSame(200, $engine->statusCode);
+        $this->assertStringEndsWith('assets/js/app.min.js', $engine->sentFile);
+        $this->assertNull($engine->endedBody);
+    }
+
+    public function testRouterPassesHeadMethodThroughToStaticResponder()
+    {
+        $engineRequest = new SwooleEngineDouble();
+        $engineRequest->server = array('request_method' => 'HEAD', 'request_uri' => '/assets/js/app.min.js');
+        $engineResponse = new SwooleResponseDouble();
+        SwooleRouter::handle($engineRequest, $engineResponse, ContainerFactory::create());
+
+        $this->assertSame(200, $engineResponse->statusCode);
+        $this->assertArrayHasKey('Content-Length', $engineResponse->headers);
+        $this->assertSame('', $engineResponse->endedBody);
+        $this->assertNull($engineResponse->sentFile);
+    }
+
     public function testApiRollsBackOpenTransactionBeforeEndingResponse()
     {
         $_SESSION = array();

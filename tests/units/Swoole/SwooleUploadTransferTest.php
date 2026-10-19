@@ -176,4 +176,76 @@ class SwooleUploadTransferTest extends TestCase
             $storage->getRecordedDownloadPath()
         );
     }
+
+    public function testMovedUploadIsSingleUse()
+    {
+        $source = $this->createTmpUpload('onetime', 'one-shot-bytes');
+        $transfer = new SwooleUploadTransfer($this->tmpDir);
+        $transfer->register(array(
+            'doc' => array(
+                'name' => 'one.txt',
+                'type' => 'text/plain',
+                'tmp_name' => $source,
+                'error' => UPLOAD_ERR_OK,
+                'size' => filesize($source),
+            ),
+        ));
+        $storage = new FileStorage($this->baseDir);
+
+        $this->assertTrue($transfer->moveRegisteredFile($source, 'one.txt', $storage));
+
+        // The source is gone; if the same path reappears later in this
+        // request it must not still be trusted.
+        file_put_contents($source, 'new-bytes');
+        $this->assertFalse($transfer->isRegistered($source));
+
+        try {
+            $transfer->moveRegisteredFile($source, 'two.txt', $storage);
+            $this->fail('Reused upload source must be rejected');
+        } catch (ObjectStorageException $e) {
+            $this->assertNotEmpty($e->getMessage());
+        } finally {
+            unlink($source);
+        }
+    }
+
+    public function testFailedDownloadClearsStaleRecordedPath()
+    {
+        $transfer = new SwooleUploadTransfer($this->tmpDir);
+        $storage = new SwooleFileStorage($this->baseDir, $transfer);
+        $blob = 'download-bytes';
+        $storage->put('stale.txt', $blob);
+        $storage->output('stale.txt');
+        $this->assertNotNull($storage->getRecordedDownloadPath());
+
+        try {
+            $storage->output('../outside_'.uniqid().'.txt');
+            $this->fail('Traversal download must be rejected');
+        } catch (ObjectStorageException $e) {
+            $this->assertNotEmpty($e->getMessage());
+        }
+
+        $this->assertNull($storage->getRecordedDownloadPath());
+    }
+
+    public function testDownloadOfUnreadableTargetIsRejected()
+    {
+        $transfer = new SwooleUploadTransfer($this->tmpDir);
+        $storage = new SwooleFileStorage($this->baseDir, $transfer);
+        $blob = 'download-bytes';
+        $storage->put('gone.txt', $blob);
+        $storage->output('gone.txt');
+        $this->assertNotNull($storage->getRecordedDownloadPath());
+
+        unlink($this->baseDir.DIRECTORY_SEPARATOR.'gone.txt');
+
+        try {
+            $storage->output('gone.txt');
+            $this->fail('Missing download target must be rejected');
+        } catch (ObjectStorageException $e) {
+            $this->assertNotEmpty($e->getMessage());
+        }
+
+        $this->assertNull($storage->getRecordedDownloadPath());
+    }
 }

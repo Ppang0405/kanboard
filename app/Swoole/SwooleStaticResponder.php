@@ -59,10 +59,13 @@ class SwooleStaticResponder
     /**
      * Stream an allowlisted file directly, denying everything else
      *
-     * @param object $engineResponse  Swoole\Http\Response
-     * @param string $path            Sanitized absolute path
+     * @param object  $engineResponse  Swoole\Http\Response
+     * @param string  $path            Sanitized absolute path
+     * @param bool    $headOnly        HEAD request: same status and
+     *                                headers (including Content-Length)
+     *                                with an empty body, no sendfile
      */
-    public static function respond($engineResponse, $path)
+    public static function respond($engineResponse, $path, $headOnly = false)
     {
         $root = realpath(ROOT_DIR);
         $filename = $root === false ? false : realpath(ROOT_DIR.$path);
@@ -88,6 +91,12 @@ class SwooleStaticResponder
         $engineResponse->header('Content-Length', (string) filesize($filename));
         $engineResponse->header('Cache-Control', 'public, max-age=86400');
         $engineResponse->status(200);
+
+        if ($headOnly) {
+            $engineResponse->end('');
+            return;
+        }
+
         $engineResponse->sendfile($filename);
     }
 

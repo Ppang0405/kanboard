@@ -45,9 +45,18 @@ $server->on('Request', function ($request, $response) {
     } catch (Throwable $failure) {
         // Bounded failure signal, no automatic retry at this layer.
         fwrite(STDERR, 'Swoole request failure: '.$failure->getMessage().PHP_EOL);
-        $response->header('Content-Type', 'application/json');
-        $response->status(500);
-        $response->end(json_encode(array('status' => 500, 'message' => 'Internal Error')));
+
+        try {
+            // The response may already be ended (e.g. a handler failure
+            // after emit), so never double-end it here.
+            if ($response->isWritable()) {
+                $response->header('Content-Type', 'application/json');
+                $response->status(500);
+                $response->end(json_encode(array('status' => 500, 'message' => 'Internal Error')));
+            }
+        } catch (Throwable $errorResponseFailure) {
+            fwrite(STDERR, 'Swoole error response failed: '.$errorResponseFailure->getMessage().PHP_EOL);
+        }
     } finally {
         SwooleLifecycle::reset($container);
     }

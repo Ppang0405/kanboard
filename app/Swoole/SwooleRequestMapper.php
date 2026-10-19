@@ -39,12 +39,15 @@ class SwooleRequestMapper
             $server['REQUEST_SCHEME'] = 'https';
         }
 
-        if (isset($engineHeaders['host'])) {
-            $hostParts = explode(':', $engineHeaders['host'], 2);
-            $server['SERVER_NAME'] = $hostParts[0];
-            $server['SERVER_PORT'] = isset($hostParts[1]) && ctype_digit($hostParts[1])
-                ? $hostParts[1]
-                : ($server['REQUEST_SCHEME'] === 'https' ? '443' : '80');
+        $host = self::findHeader($engineHeaders, 'host');
+
+        if ($host !== null) {
+            $parsed = self::parseHostHeader($host, $server['REQUEST_SCHEME'] === 'https' ? '443' : '80');
+
+            if ($parsed !== null) {
+                $server['SERVER_NAME'] = $parsed[0];
+                $server['SERVER_PORT'] = $parsed[1];
+            }
         }
 
         foreach ($engineHeaders as $name => $value) {
@@ -65,17 +68,104 @@ class SwooleRequestMapper
             'post' => isset($engine->post) && is_array($engine->post) ? $engine->post : array(),
             'files' => self::normalizeFiles(isset($engine->files) && is_array($engine->files) ? $engine->files : array()),
             'cookies' => isset($engine->cookie) && is_array($engine->cookie) ? $engine->cookie : array(),
-            'body' => $engine->rawContent(),
+            'body' => (string) $engine->rawContent(),
         );
+    }
+
+    /**
+     * Find a header value without regard to the sender's casing.
+     *
+     * Swoole preserves the casing sent by the client, so lookups by a
+     * fixed lowercase key would miss e.g. `Authorization` or `HOST`.
+     *
+     * @param  array  $headers
+     * @param  string $name  Lowercase header name
+     * @return mixed|null  Raw header value or null when absent
+     */
+    private static function findHeader(array $headers, $name)
+    {
+        foreach ($headers as $key => $value) {
+            if (strtolower((string) $key) === $name) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Split a Host header into server name and port.
+     *
+     * Handles `example.com`, `example.com:8080` and bracketed IPv6
+     * literals (`[::1]`, `[::1]:8080`); a bare unbracketed IPv6 literal
+     * is never split on its inner colons. Returns null for values that
+     * are unusable (empty, or containing control/CRLF/whitespace bytes)
+     * so the caller falls back to the scheme-based defaults.
+     *
+     * @param  mixed  $host
+     * @param  string $defaultPort
+     * @return array|null  Array($name, $port) or null
+     */
+    private static function parseHostHeader($host, $defaultPort)
+    {
+        if (! is_string($host) || $host === '') {
+            return null;
+        }
+
+        if (preg_match('/[\x00-\x20\x7F]/', $host)) {
+            return null;
+        }
+
+        if ($host[0] === '[') {
+            $end = strpos($host, ']');
+
+            if ($end === false) {
+                return null;
+            }
+
+            $name = substr($host, 1, $end - 1);
+            $rest = substr($host, $end + 1);
+
+            if ($rest === '') {
+                $port = $defaultPort;
+            } elseif (preg_match('/^:(\d{1,5})$/', $rest, $matches) && (int) $matches[1] >= 1 && (int) $matches[1] <= 65535) {
+                $port = $matches[1];
+            } else {
+                return null;
+            }
+
+            return $name === '' ? null : array($name, $port);
+        }
+
+        if (substr_count($host, ':') > 1) {
+            return array($host, $defaultPort);
+        }
+
+        $parts = explode(':', $host, 2);
+        $name = $parts[0];
+
+        if ($name === '') {
+            return null;
+        }
+
+        $port = $defaultPort;
+
+        if (isset($parts[1]) && ctype_digit($parts[1]) && (int) $parts[1] >= 1 && (int) $parts[1] <= 65535) {
+            $port = $parts[1];
+        }
+
+        return array($name, $port);
     }
 
     private static function mapBasicAuthorization(array $headers, array &$server)
     {
-        if (! isset($headers['authorization']) || stripos($headers['authorization'], 'Basic ') !== 0) {
+        $authorization = self::findHeader($headers, 'authorization');
+
+        if (! is_string($authorization) || stripos($authorization, 'Basic ') !== 0) {
             return;
         }
 
-        $decoded = base64_decode(substr($headers['authorization'], 6), true);
+        $decoded = base64_decode(substr($authorization, 6), true);
 
         if ($decoded === false || strpos($decoded, ':') === false) {
             return;

@@ -11,7 +11,7 @@ class SwooleLifecycle
      * Restore the worker baseline after every request, failures included.
      *
      * Rolls back a leaked open transaction, closes session state, clears
-     * buffers and superglobal session data, unloads translator locales and
+     * buffers and superglobal request data, unloads translator locales and
      * restores the UTC baseline. Never throws: cleanup must stay bounded.
      *
      * @param Container|null $container    This request's container, if built
@@ -29,6 +29,12 @@ class SwooleLifecycle
 
         session_id('');
         $_SESSION = array();
+        $_GET = array();
+        $_POST = array();
+        $_FILES = array();
+        $_COOKIE = array();
+        $_REQUEST = array();
+        $_SERVER = array();
 
         $strayOutput = '';
 
@@ -43,6 +49,7 @@ class SwooleLifecycle
         Translator::unload();
         date_default_timezone_set('UTC');
         header_remove();
+        http_response_code(200);
     }
 
     /**
@@ -62,7 +69,7 @@ class SwooleLifecycle
 
         try {
             $container['db']->cancelTransaction();
-        } catch (\Exception $failure) {
+        } catch (\Throwable $failure) {
             fwrite(STDERR, 'Swoole lifecycle: transaction rollback skipped: '.$failure->getMessage().PHP_EOL);
         }
     }

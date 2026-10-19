@@ -207,7 +207,11 @@ class FileStorage implements ObjectStorageInterface
 
     private function validateBasePath(string $filePath)
     {
-        if (strpos($filePath, $this->baseDir) !== 0) {
+        // Trailing separator: a sibling prefix such as /data/files_evil
+        // must not satisfy a base directory of /data/files.
+        $base = rtrim($this->baseDir, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
+
+        if (strpos($filePath, $base) !== 0) {
             throw new ObjectStorageException('File '.$filePath.' is not in base directory: '.$this->baseDir);
         }
     }

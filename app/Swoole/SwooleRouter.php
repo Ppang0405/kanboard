@@ -5,6 +5,7 @@ namespace Kanboard\Swoole;
 use Kanboard\Core\Controller\Runner;
 use Kanboard\Core\Http\Request;
 use Kanboard\Core\Http\Response;
+use Kanboard\Core\Session\SessionManager;
 use Pimple\Container;
 
 class SwooleRouter
@@ -74,7 +75,7 @@ class SwooleRouter
                 self::handleApi($engineRequest, $engineResponse, $container);
                 break;
             case 'static':
-                self::handleStatic($engineResponse, $classified['path']);
+                self::handleStatic($engineResponse, $classified['path'], $method);
                 break;
             case 'ui':
                 self::handleUi($engineRequest, $engineResponse, $container);
@@ -92,7 +93,7 @@ class SwooleRouter
             $engineResponse->header('Content-Type', 'application/json');
             $engineResponse->status(200);
             $engineResponse->end(json_encode(array('status' => 200, 'message' => 'OK')));
-        } catch (\Exception $failure) {
+        } catch (\Throwable $failure) {
             $engineResponse->header('Content-Type', 'application/json');
             $engineResponse->status(500);
             $engineResponse->end(json_encode(array('status' => 500, 'message' => 'Internal Error')));
@@ -114,9 +115,9 @@ class SwooleRouter
         $engineResponse->end($body);
     }
 
-    private static function handleStatic($engineResponse, $path)
+    private static function handleStatic($engineResponse, $path, $method = 'GET')
     {
-        SwooleStaticResponder::respond($engineResponse, $path);
+        SwooleStaticResponder::respond($engineResponse, $path, strtoupper($method) === 'HEAD');
     }
 
     private static function handleUi($engineRequest, $engineResponse, Container $container)
@@ -125,6 +126,9 @@ class SwooleRouter
         $transfer = new SwooleUploadTransfer();
         $transfer->register($mapped['files']);
         SwooleSession::bind($mapped['cookies']);
+        $container['dispatcher']->addListener(SessionManager::EVENT_DESTROY, function () {
+            SwooleSession::markDestroyed();
+        });
 
         $request = new Request(
             $container,

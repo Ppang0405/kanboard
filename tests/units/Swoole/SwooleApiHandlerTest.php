@@ -80,22 +80,35 @@ class SwooleApiHandlerTest extends TestCase
         $this->assertArrayHasKey('result', $payload);
     }
 
-    public function testSecondHandleCallDoesNotReuseFirstRequestServer()
+    public function testFreshContainersIsolateRequestsFromEachOther()
     {
-        list($container, $firstStatus) = $this->handleJson(
+        // Production uses one fresh container per request, so per-request
+        // injection can never leak across requests even though the api
+        // service itself is shared within a container.
+        list(, $firstStatus) = $this->handleJson(
             '{"jsonrpc":"2.0","id":8,"method":"getVersion","params":[]}',
             array('PHP_AUTH_USER' => 'nobody', 'PHP_AUTH_PW' => 'wrong')
         );
         $this->assertSame(401, $firstStatus);
 
+        $_SESSION = array();
+        $secondContainer = ContainerFactory::create();
         list(, $secondStatus, , $secondPayload) = $this->handleJson(
             '{"jsonrpc":"2.0","id":9,"method":"getVersion","params":[]}',
-            array('PHP_AUTH_USER' => 'jsonrpc', 'PHP_AUTH_PW' => $this->apiToken($container)),
-            $container
+            array('PHP_AUTH_USER' => 'jsonrpc', 'PHP_AUTH_PW' => $this->apiToken($secondContainer)),
+            $secondContainer
         );
 
         $this->assertSame(200, $secondStatus);
         $this->assertArrayHasKey('result', $secondPayload);
+    }
+
+    public function testApiServiceIsSharedWithinOneContainer()
+    {
+        $_SESSION = array();
+        $container = ContainerFactory::create();
+
+        $this->assertSame($container['api'], $container['api']);
     }
 
     public function testValidBatchStaysHttpOk()

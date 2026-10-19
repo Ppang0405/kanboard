@@ -362,15 +362,16 @@ class Response extends Base
     {
         $this->withoutCache();
         $this->withContentType('text/csv; charset=utf-8');
-        $this->send();
 
         if ($this->captureOnly) {
             ob_start();
             Csv::output($data, $addBOM);
             $this->withBody((string) ob_get_clean());
+            $this->send();
             return;
         }
 
+        $this->send();
         Csv::output($data, $addBOM);
     }
 

@@ -101,6 +101,79 @@ class SwooleRequestMapperTest extends TestCase
         $this->assertArrayNotHasKey('PHP_AUTH_PW', $mapped['server']);
     }
 
+    public function testAuthorizationHeaderLookupIsCaseInsensitive()
+    {
+        $engine = new SwooleEngineDouble();
+        $engine->server = array('request_method' => 'POST', 'request_uri' => '/jsonrpc.php');
+        $engine->header = array('Authorization' => 'Basic '.base64_encode('api-user:api-pass'));
+
+        $mapped = SwooleRequestMapper::map($engine);
+
+        $this->assertSame('api-user', $mapped['server']['PHP_AUTH_USER']);
+        $this->assertSame('api-pass', $mapped['server']['PHP_AUTH_PW']);
+    }
+
+    public function testHostHeaderLookupIsCaseInsensitive()
+    {
+        $engine = new SwooleEngineDouble();
+        $engine->server = array('request_method' => 'GET', 'request_uri' => '/');
+        $engine->header = array('HOST' => 'kanboard.lan:9000');
+
+        $mapped = SwooleRequestMapper::map($engine);
+
+        $this->assertSame('kanboard.lan', $mapped['server']['SERVER_NAME']);
+        $this->assertSame('9000', $mapped['server']['SERVER_PORT']);
+    }
+
+    public function testParsesBracketedIpv6HostWithPort()
+    {
+        $engine = new SwooleEngineDouble();
+        $engine->server = array('request_method' => 'GET', 'request_uri' => '/');
+        $engine->header = array('host' => '[::1]:8080');
+
+        $mapped = SwooleRequestMapper::map($engine);
+
+        $this->assertSame('::1', $mapped['server']['SERVER_NAME']);
+        $this->assertSame('8080', $mapped['server']['SERVER_PORT']);
+    }
+
+    public function testParsesBracketedIpv6HostWithDefaultPort()
+    {
+        $engine = new SwooleEngineDouble();
+        $engine->server = array('request_method' => 'GET', 'request_uri' => '/');
+        $engine->header = array('host' => '[2001:db8::1]');
+
+        $mapped = SwooleRequestMapper::map($engine);
+
+        $this->assertSame('2001:db8::1', $mapped['server']['SERVER_NAME']);
+        $this->assertSame('80', $mapped['server']['SERVER_PORT']);
+    }
+
+    public function testInvalidHostHeaderFallsBackToDefaults()
+    {
+        foreach (array("evil.example.com\r\nX-Injected: 1", 'evil.example.com bad', '', "[::1", '[]:8080') as $host) {
+            $engine = new SwooleEngineDouble();
+            $engine->server = array('request_method' => 'GET', 'request_uri' => '/');
+            $engine->header = array('host' => $host);
+
+            $mapped = SwooleRequestMapper::map($engine);
+
+            $this->assertArrayNotHasKey('SERVER_NAME', $mapped['server'], 'Host must be rejected: '.$host);
+            $this->assertArrayNotHasKey('SERVER_PORT', $mapped['server'], 'Host must be rejected: '.$host);
+        }
+    }
+
+    public function testNonStringRawBodyIsCastToString()
+    {
+        $engine = new SwooleEngineDouble();
+        $engine->server = array('request_method' => 'POST', 'request_uri' => '/');
+        $engine->setRawBody(null);
+
+        $mapped = SwooleRequestMapper::map($engine);
+
+        $this->assertSame('', $mapped['body']);
+    }
+
     public function testEmptyBagsStayEmptyForIsolatedRequests()
     {
         $engine = new SwooleEngineDouble();

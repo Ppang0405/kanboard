@@ -18,6 +18,11 @@ ENV TZ=UTC \
     SWOOLE_PORT=8080 \
     COMPOSER_ALLOW_SUPERUSER=1
 
+# Tag-pinned (not digest-pinned): the tags below are the tested snapshot
+# for this experiment. Refresh to then-current security patches before
+# any actual deployment, and consider digest pins if you need immutable
+# rebuilds.
+#
 # Pinned Swoole version, current PECL stable, compatible with PHP 8.3.
 ARG SWOOLE_VERSION=6.2.3
 
@@ -66,7 +71,7 @@ VOLUME ["/var/www/app/data", "/var/www/app/plugins"]
 EXPOSE 8080
 
 HEALTHCHECK --start-period=15s --timeout=5s --retries=3 \
-    CMD curl -f http://127.0.0.1:8080/health || exit 1
+    CMD curl -fsS "http://127.0.0.1:${SWOOLE_PORT:-8080}/health" || exit 1
 
 ENTRYPOINT ["php", "/var/www/app/docker/swoole/server.php"]
 

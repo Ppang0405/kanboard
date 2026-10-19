@@ -50,17 +50,24 @@ class SwooleResponseEmitter
 
     /**
      * Resolve the status code with PHP SAPI parity: sending a Location
-     * header defaults an unset (200) status to 302 Found.
+     * header defaults an unset (200) status to 302 Found. The header
+     * name match is case-insensitive, like the SAPI itself.
      *
      * @param  Response $captured
      * @return integer
      */
     private static function resolveStatusCode(Response $captured)
     {
-        if ($captured->getStatusCode() === 200 && array_key_exists('Location', $captured->getHeaders())) {
-            return 302;
+        if ($captured->getStatusCode() !== 200) {
+            return $captured->getStatusCode();
         }
 
-        return $captured->getStatusCode();
+        foreach ($captured->getHeaders() as $name => $value) {
+            if (strtolower((string) $name) === 'location') {
+                return 302;
+            }
+        }
+
+        return 200;
     }
 }

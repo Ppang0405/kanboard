@@ -125,7 +125,7 @@ class Server
      *
      * @access public
      * @param  string|null         $request
-     * @param  array               $server
+     * @param  array|null          $server
      * @param  ResponseBuilder     $responseBuilder
      * @param  RequestParser       $requestParser
      * @param  BatchRequestParser  $batchRequestParser
@@ -134,7 +134,7 @@ class Server
      */
     public function __construct(
         $request = null,
-        array $server = array(),
+        ?array $server = null,
         ?ResponseBuilder $responseBuilder = null,
         ?RequestParser $requestParser = null,
         ?BatchRequestParser $batchRequestParser = null,
@@ -147,7 +147,7 @@ class Server
             $this->payload = json_decode($request, true);
         }
 
-        $this->serverVariable = $server ?: $_SERVER;
+        $this->serverVariable = $server ?? $_SERVER;
         $this->responseBuilder = $responseBuilder ?: ResponseBuilder::create();
         $this->requestParser = $requestParser ?: RequestParser::create();
         $this->batchRequestParser = $batchRequestParser ?: BatchRequestParser::create();

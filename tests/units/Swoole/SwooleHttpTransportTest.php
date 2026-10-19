@@ -6,6 +6,7 @@ use Kanboard\Core\Http\Request;
 use Kanboard\Core\ObjectStorage\FileStorage;
 use Kanboard\Core\ObjectStorage\ObjectStorageException;
 use Kanboard\Swoole\ContainerFactory;
+use JsonRPC\Server;
 use PHPUnit\Framework\TestCase;
 
 class SwooleHttpTransportTest extends TestCase
@@ -67,6 +68,18 @@ class SwooleHttpTransportTest extends TestCase
 
         $this->assertSame('{"greeting":"hello"}', $request->getBody());
         $this->assertSame(array('greeting' => 'hello'), $request->getJson(false));
+    }
+
+    public function testRequestBodyIsCastToString()
+    {
+        $container = ContainerFactory::create();
+        $request = new Request($container, array(), array(), array(), array(), array(), true);
+        $request->setBody(null);
+
+        $this->assertSame('', $request->getBody());
+
+        $request->setBody(123);
+        $this->assertSame('123', $request->getBody());
     }
 
     public function testCapturedCsvResponseExposesBodyBytes()
@@ -141,5 +154,60 @@ class SwooleHttpTransportTest extends TestCase
         $this->assertArrayNotHasKey('result', $payload);
         $this->assertSame(401, $payload['error']['code']);
         $this->assertSame('Unauthorized', $payload['error']['message']);
+    }
+
+    public function testInjectedEmptyServerArrayDoesNotFallBackToGlobals()
+    {
+        $_SERVER['PHP_AUTH_USER'] = 'global-user';
+        $_SERVER['PHP_AUTH_PW'] = 'global-pass';
+
+        try {
+            $server = new Server('{"jsonrpc":"2.0","id":1,"method":"getVersion","params":[]}', array());
+
+            $this->assertNull($server->getUsername());
+            $this->assertNull($server->getPassword());
+        } finally {
+            unset($_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW']);
+        }
+    }
+
+    public function testNullServerVarsKeepsLegacyGlobalsFallback()
+    {
+        $_SERVER['PHP_AUTH_USER'] = 'legacy-user';
+        $_SERVER['PHP_AUTH_PW'] = 'legacy-pass';
+
+        try {
+            $server = new Server('{"jsonrpc":"2.0","id":1,"method":"getVersion","params":[]}', null);
+
+            $this->assertSame('legacy-user', $server->getUsername());
+            $this->assertSame('legacy-pass', $server->getPassword());
+        } finally {
+            unset($_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW']);
+        }
+    }
+
+    public function testApiProviderInjectedEmptyServerArrayStaysEmpty()
+    {
+        $_SERVER['PHP_AUTH_USER'] = 'global-user';
+        $_SERVER['PHP_AUTH_PW'] = 'global-pass';
+
+        try {
+            $_SESSION = array();
+            $container = ContainerFactory::create();
+            $container['apiRequestBody'] = '{"jsonrpc":"2.0","id":1,"method":"getVersion","params":[]}';
+            $container['apiServerVars'] = array();
+
+            $this->assertNull($container['api']->getUsername());
+            $this->assertNull($container['api']->getPassword());
+        } finally {
+            unset($_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW']);
+        }
+    }
+
+    public function testApiServiceIsSharedWithinContainer()
+    {
+        $container = ContainerFactory::create();
+
+        $this->assertSame($container['api'], $container['api']);
     }
 }

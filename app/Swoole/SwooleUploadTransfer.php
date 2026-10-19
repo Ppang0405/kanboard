@@ -29,6 +29,9 @@ class SwooleUploadTransfer
      * Register the tmp files of this request after success, error, size and
      * location checks. Only registered paths may be moved into storage.
      *
+     * The files bag is populated by the engine transport itself: tmp paths
+     * come from Swoole's upload handling, never from caller-supplied input.
+     *
      * @param  array $normalizedFiles  $_FILES-shaped entries
      * @return $this
      */
@@ -81,7 +84,15 @@ class SwooleUploadTransfer
             throw new ObjectStorageException('Untrusted upload source: '.$source);
         }
 
-        return $storage->moveFile(realpath($source), $key);
+        $realSource = realpath($source);
+        $result = $storage->moveFile($realSource, $key);
+
+        // Single-use: the source is gone after a successful move, so drop
+        // the allowlist entry so the same path can never be moved again
+        // if it reappears later in this request.
+        unset($this->allowedPaths[$realSource]);
+
+        return $result;
     }
 
     private function registerSingleFile(array $entry)

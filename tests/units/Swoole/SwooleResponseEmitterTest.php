@@ -41,6 +41,35 @@ class SwooleResponseEmitterTest extends TestCase
         $this->assertSame('/?controller=AuthController&action=login', $engine->headers['Location']);
     }
 
+    public function testLowercaseLocationHeaderDefaultsUnsetStatusToFound()
+    {
+        $container = ContainerFactory::create();
+        $response = $container['response'];
+        $response->capture();
+        $response->withHeader('location', '/dashboard');
+        $response->send();
+
+        $engine = new SwooleResponseDouble();
+        SwooleResponseEmitter::emit($engine, $response);
+
+        $this->assertSame(302, $engine->statusCode);
+    }
+
+    public function testExplicitStatusIsKeptWhenLocationPresent()
+    {
+        $container = ContainerFactory::create();
+        $response = $container['response'];
+        $response->capture();
+        $response->withStatusCode(201);
+        $response->withHeader('Location', '/tasks/1');
+        $response->send();
+
+        $engine = new SwooleResponseDouble();
+        SwooleResponseEmitter::emit($engine, $response);
+
+        $this->assertSame(201, $engine->statusCode);
+    }
+
     public function testEmitsSessionAndRememberMeCookies()
     {
         $container = ContainerFactory::create();

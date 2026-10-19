@@ -3,6 +3,7 @@
 namespace Kanboard\Swoole;
 
 use Kanboard\Core\ObjectStorage\FileStorage;
+use Kanboard\Core\ObjectStorage\ObjectStorageException;
 use LogicException;
 
 /**
@@ -40,11 +41,23 @@ class SwooleFileStorage extends FileStorage
     /**
      * Record the validated download path instead of streaming it
      *
+     * The previously recorded path is cleared first so a failed lookup
+     * can never leave a stale path behind for the transport to send.
+     *
      * @param  string $key  Storage object key
+     * @throws ObjectStorageException
      */
     public function output($key)
     {
-        $this->recordedDownloadPath = $this->getPath($key);
+        $this->recordedDownloadPath = null;
+
+        $path = $this->getPath($key);
+
+        if (! is_file($path) || ! is_readable($path)) {
+            throw new ObjectStorageException('Unreadable download file: '.$key);
+        }
+
+        $this->recordedDownloadPath = $path;
     }
 
     /**
