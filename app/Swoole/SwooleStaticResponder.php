@@ -71,19 +71,19 @@ class SwooleStaticResponder
         $filename = $root === false ? false : realpath(ROOT_DIR.$path);
 
         if ($filename === false || ! is_file($filename)) {
-            self::deny($engineResponse);
+            self::deny($engineResponse, $headOnly);
             return;
         }
 
         if (strpos($filename, $root.DIRECTORY_SEPARATOR) !== 0 || filesize($filename) > self::MAX_STATIC_BYTES) {
-            self::deny($engineResponse);
+            self::deny($engineResponse, $headOnly);
             return;
         }
 
         $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
 
         if (! isset(self::$contentTypes[$extension])) {
-            self::deny($engineResponse);
+            self::deny($engineResponse, $headOnly);
             return;
         }
 
@@ -104,16 +104,20 @@ class SwooleStaticResponder
      * Answer 404 without disclosing anything about the requested path
      *
      * @param object $engineResponse  Swoole\Http\Response
+     * @param bool   $headOnly        HEAD request: same status and headers
+     *                                with an empty body
      */
-    public static function deny404($engineResponse)
+    public static function deny404($engineResponse, $headOnly = false)
     {
-        self::deny($engineResponse);
+        self::deny($engineResponse, $headOnly);
     }
 
-    private static function deny($engineResponse)
+    private static function deny($engineResponse, $headOnly = false)
     {
+        $body = json_encode(array('status' => 404, 'message' => 'Not Found'));
         $engineResponse->header('Content-Type', 'application/json');
+        $engineResponse->header('Content-Length', (string) strlen($body));
         $engineResponse->status(404);
-        $engineResponse->end(json_encode(array('status' => 404, 'message' => 'Not Found')));
+        $engineResponse->end($headOnly ? '' : $body);
     }
 }

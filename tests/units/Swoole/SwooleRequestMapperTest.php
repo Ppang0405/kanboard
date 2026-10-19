@@ -172,6 +172,12 @@ class SwooleRequestMapperTest extends TestCase
         $mapped = SwooleRequestMapper::map($engine);
 
         $this->assertSame('', $mapped['body']);
+
+        $engine->setRawBody(123);
+
+        $mapped = SwooleRequestMapper::map($engine);
+
+        $this->assertSame('123', $mapped['body']);
     }
 
     public function testEmptyBagsStayEmptyForIsolatedRequests()

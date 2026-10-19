@@ -188,6 +188,7 @@ class SwooleHttpTransportTest extends TestCase
 
     public function testApiProviderInjectedEmptyServerArrayStaysEmpty()
     {
+        $previousSession = isset($_SESSION) ? $_SESSION : array();
         $_SERVER['PHP_AUTH_USER'] = 'global-user';
         $_SERVER['PHP_AUTH_PW'] = 'global-pass';
 
@@ -200,6 +201,7 @@ class SwooleHttpTransportTest extends TestCase
             $this->assertNull($container['api']->getUsername());
             $this->assertNull($container['api']->getPassword());
         } finally {
+            $_SESSION = $previousSession;
             unset($_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW']);
         }
     }

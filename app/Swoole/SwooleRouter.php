@@ -81,7 +81,7 @@ class SwooleRouter
                 self::handleUi($engineRequest, $engineResponse, $container);
                 break;
             default:
-                SwooleStaticResponder::deny404($engineResponse);
+                SwooleStaticResponder::deny404($engineResponse, strtoupper($method) === 'HEAD');
                 break;
         }
     }

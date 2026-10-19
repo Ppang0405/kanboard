@@ -24,6 +24,22 @@ class TransactionObservingResponseDouble extends SwooleResponseDouble
     }
 }
 
+class ThrowingErrorConnectionDouble
+{
+    public function query($statement)
+    {
+        throw new \Error('boom');
+    }
+}
+
+class ThrowingErrorDbDouble
+{
+    public function getConnection()
+    {
+        return new ThrowingErrorConnectionDouble();
+    }
+}
+
 class SwooleRouterTest extends TestCase
 {
     public function testClassifiesPublicRoutes()
@@ -183,5 +199,113 @@ class SwooleRouterTest extends TestCase
         $this->assertNotNull($engineResponse->endedBody);
         $this->assertFalse($engineResponse->transactionOpenAtEnd);
         $this->assertFalse($container['db']->getConnection()->inTransaction());
+    }
+
+    public function testHealthThrowableReturns500InternalError()
+    {
+        $container = ContainerFactory::create();
+        $container['db'] = new ThrowingErrorDbDouble();
+
+        $engineRequest = new SwooleEngineDouble();
+        $engineRequest->server = array('request_method' => 'GET', 'request_uri' => '/health');
+        $engineResponse = new SwooleResponseDouble();
+        SwooleRouter::handle($engineRequest, $engineResponse, $container);
+
+        $this->assertSame(500, $engineResponse->statusCode);
+        $this->assertSame('application/json', $engineResponse->headers['Content-Type']);
+        $payload = json_decode($engineResponse->endedBody, true);
+        $this->assertSame(500, $payload['status']);
+        $this->assertSame('Internal Error', $payload['message']);
+    }
+
+    public function testStaticHeadDeniesMissingFileWithoutBody()
+    {
+        $get = new SwooleResponseDouble();
+        SwooleStaticResponder::respond($get, '/assets/js/does-not-exist.min.js', false);
+
+        $head = new SwooleResponseDouble();
+        SwooleStaticResponder::respond($head, '/assets/js/does-not-exist.min.js', true);
+
+        $this->assertSame(404, $get->statusCode);
+        $this->assertNotSame('', $get->endedBody);
+        $this->assertSame(404, $head->statusCode);
+        $this->assertSame('', $head->endedBody);
+        $this->assertSame('application/json', $head->headers['Content-Type']);
+        $this->assertSame($get->headers['Content-Length'], $head->headers['Content-Length']);
+        $this->assertSame((string) strlen($get->endedBody), $head->headers['Content-Length']);
+        $this->assertNull($head->sentFile);
+    }
+
+    public function testStaticHeadDeniesOversizeFileWithoutBody()
+    {
+        $probe = ROOT_DIR.'/assets/swoole-oversize-probe.txt';
+        $handle = fopen($probe, 'w');
+        $this->assertNotFalse($handle);
+
+        try {
+            $this->assertNotFalse(fseek($handle, SwooleStaticResponder::MAX_STATIC_BYTES));
+            $this->assertNotFalse(fwrite($handle, 'x'));
+            fclose($handle);
+            $handle = false;
+
+            $get = new SwooleResponseDouble();
+            SwooleStaticResponder::respond($get, '/assets/swoole-oversize-probe.txt', false);
+
+            $head = new SwooleResponseDouble();
+            SwooleStaticResponder::respond($head, '/assets/swoole-oversize-probe.txt', true);
+
+            $this->assertSame(404, $get->statusCode);
+            $this->assertSame(404, $head->statusCode);
+            $this->assertSame('', $head->endedBody);
+            $this->assertSame('application/json', $head->headers['Content-Type']);
+            $this->assertSame($get->headers['Content-Length'], $head->headers['Content-Length']);
+            $this->assertSame((string) strlen($get->endedBody), $head->headers['Content-Length']);
+            $this->assertNull($head->sentFile);
+        } finally {
+            if (is_resource($handle)) {
+                fclose($handle);
+            }
+
+            if (is_file($probe)) {
+                unlink($probe);
+            }
+        }
+    }
+
+    public function testStaticHeadDeniesDisallowedExtensionWithoutBody()
+    {
+        $get = new SwooleResponseDouble();
+        SwooleStaticResponder::respond($get, '/app/common.php', false);
+
+        $head = new SwooleResponseDouble();
+        SwooleStaticResponder::respond($head, '/app/common.php', true);
+
+        $this->assertSame(404, $get->statusCode);
+        $this->assertSame(404, $head->statusCode);
+        $this->assertSame('', $head->endedBody);
+        $this->assertSame('application/json', $head->headers['Content-Type']);
+        $this->assertSame($get->headers['Content-Length'], $head->headers['Content-Length']);
+        $this->assertSame((string) strlen($get->endedBody), $head->headers['Content-Length']);
+        $this->assertNull($head->sentFile);
+    }
+
+    public function testRouterHeadDeniedPathReturns404WithoutBody()
+    {
+        $getRequest = new SwooleEngineDouble();
+        $getRequest->server = array('request_method' => 'GET', 'request_uri' => '/app/common.php');
+        $getResponse = new SwooleResponseDouble();
+        SwooleRouter::handle($getRequest, $getResponse, ContainerFactory::create());
+
+        $headRequest = new SwooleEngineDouble();
+        $headRequest->server = array('request_method' => 'HEAD', 'request_uri' => '/app/common.php');
+        $headResponse = new SwooleResponseDouble();
+        SwooleRouter::handle($headRequest, $headResponse, ContainerFactory::create());
+
+        $this->assertSame(404, $getResponse->statusCode);
+        $this->assertSame(404, $headResponse->statusCode);
+        $this->assertSame('', $headResponse->endedBody);
+        $this->assertSame('application/json', $headResponse->headers['Content-Type']);
+        $this->assertSame($getResponse->headers['Content-Length'], $headResponse->headers['Content-Length']);
+        $this->assertSame((string) strlen($getResponse->endedBody), $headResponse->headers['Content-Length']);
     }
 }
