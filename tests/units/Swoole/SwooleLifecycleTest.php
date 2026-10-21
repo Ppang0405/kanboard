@@ -79,7 +79,7 @@ class SwooleLifecycleTest extends TestCase
             $this->assertSame(array(), $_FILES);
             $this->assertSame(array(), $_COOKIE);
             $this->assertSame(array(), $_REQUEST);
-            $this->assertSame(array(), $_SERVER);
+            $this->assertSame(SwooleLifecycle::BASELINE_SERVER, $_SERVER);
             $this->assertSame(200, http_response_code());
         } finally {
             $_GET = array();

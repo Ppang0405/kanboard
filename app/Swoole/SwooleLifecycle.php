@@ -8,6 +8,14 @@ use Pimple\Container;
 class SwooleLifecycle
 {
     /**
+     * $_SERVER after a reset: request data is gone, but the per-request
+     * container still builds the console commands, and Symfony's
+     * DumpCompletionCommand::configure() reads PHP_SELF (an "Undefined array
+     * key" warning on every request otherwise).
+     */
+    const BASELINE_SERVER = array('PHP_SELF' => 'server.php');
+
+    /**
      * Restore the worker baseline after every request, failures included.
      *
      * Rolls back a leaked open transaction, closes session state, clears
@@ -34,7 +42,7 @@ class SwooleLifecycle
         $_FILES = array();
         $_COOKIE = array();
         $_REQUEST = array();
-        $_SERVER = array();
+        $_SERVER = self::BASELINE_SERVER;
 
         $strayOutput = '';
 
