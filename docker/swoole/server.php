@@ -24,6 +24,8 @@ $server->set(array(
     'worker_num' => 1,
     'enable_coroutine' => false,
     'max_request' => intval(getenv('SWOOLE_MAX_REQUEST') ?: 0),
+    // Swoole defaults to 2 MB per request; match post_max_size (100M) plus multipart/base64 overhead.
+    'package_max_length' => intval(getenv('SWOOLE_PACKAGE_MAX_LENGTH') ?: 140 * 1024 * 1024),
 ));
 
 $server->on('WorkerStart', function ($server, $workerId) {
