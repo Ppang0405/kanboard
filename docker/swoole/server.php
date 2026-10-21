@@ -46,11 +46,13 @@ $server->on('Request', function ($request, $response) {
 
     try {
         $container = ContainerFactory::create();
+        SwooleSentry::instrument($container);
         SwooleRouter::handle($request, $response, $container);
     } catch (Throwable $failure) {
         // Bounded failure signal, no automatic retry at this layer.
         fwrite(STDERR, 'Swoole request failure: '.$failure->getMessage().PHP_EOL);
         SwooleSentry::captureException($failure, SwooleSentry::currentUserId($container));
+        SwooleSentry::recordStatus(500);
 
         try {
             // The response may already be ended (e.g. a handler failure
@@ -64,7 +66,7 @@ $server->on('Request', function ($request, $response) {
             fwrite(STDERR, 'Swoole error response failed: '.$errorResponseFailure->getMessage().PHP_EOL);
         }
     } finally {
-        SwooleSentry::endRequest();
+        SwooleSentry::endRequest($container);
         SwooleLifecycle::reset($container);
     }
 });

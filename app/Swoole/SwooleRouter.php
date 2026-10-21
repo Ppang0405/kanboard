@@ -106,6 +106,7 @@ class SwooleRouter
         list($status, $headers, $body) = SwooleApiHandler::handle($container, $mapped['body'], $mapped['server']);
 
         SwooleLifecycle::rollbackTransaction($container);
+        SwooleSentry::recordStatus($status);
         $engineResponse->status($status);
 
         foreach ($headers as $name => $value) {

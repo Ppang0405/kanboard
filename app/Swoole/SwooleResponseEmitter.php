@@ -22,7 +22,9 @@ class SwooleResponseEmitter
      */
     public static function emit($engine, Response $captured, $filePath = null, array $cookies = array())
     {
-        $engine->status(self::resolveStatusCode($captured));
+        $status = self::resolveStatusCode($captured);
+        SwooleSentry::recordStatus($status);
+        $engine->status($status);
 
         foreach ($captured->getHeaders() as $name => $value) {
             $engine->header($name, $value);

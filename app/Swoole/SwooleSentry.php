@@ -9,6 +9,8 @@ use Sentry\Integration\FatalErrorListenerIntegration;
 use Sentry\Integration\FrameContextifierIntegration;
 use Sentry\SentrySdk;
 use Sentry\State\Scope;
+use Sentry\Tracing\TransactionContext;
+use Sentry\Tracing\TransactionSource;
 
 /**
  * Optional error reporting to a Sentry-protocol server (Sentry, Rustrak).
@@ -19,6 +21,11 @@ use Sentry\State\Scope;
  * the numeric Kanboard id only. The default RequestIntegration is not used
  * because it reads superglobals, which are empty under Swoole; the request
  * context is attached per request from the engine request instead.
+ *
+ * Performance tracing is off unless SENTRY_TRACES_SAMPLE_RATE > 0: one
+ * transaction per UI or JSON-RPC request (health checks and static files are
+ * never traced), named after the controller/action or API method, with the
+ * HTTP status and the request's database query count and time.
  */
 class SwooleSentry
 {
@@ -40,6 +47,9 @@ class SwooleSentry
     );
 
     private static $enabled = false;
+    private static $tracing = false;
+    private static $transaction = null;
+    private static $status = 200;
 
     /**
      * Initialize the SDK in the worker process (WorkerStart). Second calls are no-ops.
@@ -52,6 +62,8 @@ class SwooleSentry
             return;
         }
 
+        $tracesSampleRate = (float) getenv('SENTRY_TRACES_SAMPLE_RATE');
+
         \Sentry\init(array(
             'dsn' => $dsn,
             'environment' => getenv('SENTRY_ENVIRONMENT') ?: 'production',
@@ -59,6 +71,7 @@ class SwooleSentry
             'send_default_pii' => false,
             'max_request_body_size' => 'never',
             'error_types' => self::ERROR_TYPES,
+            'traces_sample_rate' => $tracesSampleRate > 0 ? $tracesSampleRate : null,
             'default_integrations' => false,
             'integrations' => array(
                 new ErrorListenerIntegration(),
@@ -72,7 +85,8 @@ class SwooleSentry
         ));
 
         self::$enabled = true;
-        fwrite(STDERR, 'Sentry error reporting enabled'.PHP_EOL);
+        self::$tracing = $tracesSampleRate > 0;
+        fwrite(STDERR, 'Sentry error reporting enabled'.(self::$tracing ? ', tracing at '.$tracesSampleRate : '').PHP_EOL);
     }
 
     /**
@@ -95,6 +109,44 @@ class SwooleSentry
                 return $event;
             });
         });
+
+        if (self::$tracing) {
+            // Runs before the entrypoint's try block: tracing must never fail a request.
+            try {
+                self::startTransaction($engineRequest);
+            } catch (\Throwable $failure) {
+                self::$transaction = null;
+                fwrite(STDERR, 'Sentry transaction start failed: '.$failure->getMessage().PHP_EOL);
+            }
+        }
+    }
+
+    /**
+     * Time this request's database work (only while a transaction is open).
+     *
+     * @param \Pimple\Container $container
+     */
+    public static function instrument($container): void
+    {
+        if (self::$transaction === null) {
+            return;
+        }
+
+        try {
+            $container['db']->getStatementHandler()->withStopWatch();
+        } catch (\Throwable $failure) {
+            fwrite(STDERR, 'Sentry DB instrumentation failed: '.$failure->getMessage().PHP_EOL);
+        }
+    }
+
+    /**
+     * Remember the HTTP status sent for this request (closes the transaction with it).
+     *
+     * @param int $status
+     */
+    public static function recordStatus($status): void
+    {
+        self::$status = (int) $status;
     }
 
     /**
@@ -158,12 +210,107 @@ class SwooleSentry
     }
 
     /**
-     * Close the per-request scope (server finally block).
+     * Finish the transaction, then close the per-request scope (server finally block).
+     *
+     * @param \Pimple\Container|null $container
      */
-    public static function endRequest(): void
+    public static function endRequest($container = null): void
     {
-        if (self::$enabled) {
-            SentrySdk::getCurrentHub()->popScope();
+        if (! self::$enabled) {
+            return;
+        }
+
+        if (self::$transaction !== null) {
+            try {
+                self::$transaction->setData(self::databaseData($container));
+                self::$transaction->setHttpStatus(self::$status);
+                self::$transaction->finish();
+            } catch (\Throwable $failure) {
+                fwrite(STDERR, 'Sentry transaction failed: '.$failure->getMessage().PHP_EOL);
+            }
+
+            self::$transaction = null;
+        }
+
+        SentrySdk::getCurrentHub()->popScope();
+    }
+
+    private static function startTransaction($engineRequest): void
+    {
+        $server = isset($engineRequest->server) ? $engineRequest->server : array();
+        $method = isset($server['request_method']) ? strtoupper($server['request_method']) : 'GET';
+        $route = SwooleRouter::classify($method, isset($server['request_uri']) ? $server['request_uri'] : '/')['route'];
+
+        if ($route !== 'ui' && $route !== 'api') {
+            return;
+        }
+
+        $context = TransactionContext::make()
+            ->setOp('http.server')
+            ->setName(self::transactionName($engineRequest, $method, $route))
+            ->setSource(TransactionSource::route());
+
+        $transaction = \Sentry\startTransaction($context);
+
+        if ($transaction->getSampled()) {
+            SentrySdk::getCurrentHub()->setSpan($transaction);
+            self::$transaction = $transaction;
+            self::$status = 200;
+        }
+    }
+
+    /**
+     * "GET TaskViewController::show" or "jsonrpc getTask"; unexpected values
+     * collapse to "?" so garbage input cannot create unbounded names.
+     */
+    private static function transactionName($engineRequest, $method, $route)
+    {
+        if ($route === 'api') {
+            $body = method_exists($engineRequest, 'rawContent') ? (string) $engineRequest->rawContent() : '';
+            $payload = strlen($body) <= 65536 ? json_decode($body, true) : null;
+
+            if (is_array($payload) && isset($payload[0])) {
+                return 'jsonrpc batch';
+            }
+
+            $procedure = is_array($payload) && isset($payload['method']) ? $payload['method'] : '';
+            return 'jsonrpc '.(is_string($procedure) && preg_match('/^[A-Za-z0-9_]{1,64}$/', $procedure) ? $procedure : '?');
+        }
+
+        $query = isset($engineRequest->get) && is_array($engineRequest->get) ? $engineRequest->get : array();
+
+        if (! isset($query['controller'])) {
+            return $method.' /';
+        }
+
+        $name = function ($value) {
+            return is_string($value) && preg_match('/^[A-Za-z0-9_]{1,64}$/', $value) ? $value : '?';
+        };
+
+        return $method.' '.$name($query['controller']).'::'.$name(isset($query['action']) ? $query['action'] : 'show');
+    }
+
+    private static function databaseData($container): array
+    {
+        if ($container === null) {
+            return array();
+        }
+
+        try {
+            $handler = $container['db']->getStatementHandler();
+            $data = array('db.query_count' => $handler->getNbQueries());
+
+            // The stopwatch logs a running total after each query; the last one is this request's DB time.
+            foreach (array_reverse($container['db']->getLogMessages()) as $message) {
+                if (strpos($message, 'total_execution_time=') === 0) {
+                    $data['db.time_ms'] = round(1000 * (float) substr($message, 21), 1);
+                    break;
+                }
+            }
+
+            return $data;
+        } catch (\Throwable $failure) {
+            return array();
         }
     }
 
