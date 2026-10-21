@@ -11,6 +11,7 @@ use Kanboard\Swoole\Bootstrap;
 use Kanboard\Swoole\ContainerFactory;
 use Kanboard\Swoole\SwooleLifecycle;
 use Kanboard\Swoole\SwooleRouter;
+use Kanboard\Swoole\SwooleSentry;
 
 require __DIR__.'/../../vendor/autoload.php';
 
@@ -32,6 +33,7 @@ $server->on('WorkerStart', function ($server, $workerId) {
     // STDERR only: stdout output would mark PHP headers as sent and break
     // session and header handling for every later request on this worker.
     fwrite(STDERR, 'Swoole worker started (id='.$workerId.')'.PHP_EOL);
+    SwooleSentry::initializeOnce();
 });
 
 $server->on('Request', function ($request, $response) {
@@ -40,6 +42,7 @@ $server->on('Request', function ($request, $response) {
     // Guard buffer: any stray stdout output stays contained in this request
     // instead of permanently marking PHP headers as sent for the worker.
     ob_start();
+    SwooleSentry::beginRequest($request);
 
     try {
         $container = ContainerFactory::create();
@@ -47,6 +50,7 @@ $server->on('Request', function ($request, $response) {
     } catch (Throwable $failure) {
         // Bounded failure signal, no automatic retry at this layer.
         fwrite(STDERR, 'Swoole request failure: '.$failure->getMessage().PHP_EOL);
+        SwooleSentry::captureException($failure, SwooleSentry::currentUserId($container));
 
         try {
             // The response may already be ended (e.g. a handler failure
@@ -60,6 +64,7 @@ $server->on('Request', function ($request, $response) {
             fwrite(STDERR, 'Swoole error response failed: '.$errorResponseFailure->getMessage().PHP_EOL);
         }
     } finally {
+        SwooleSentry::endRequest();
         SwooleLifecycle::reset($container);
     }
 });

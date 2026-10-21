@@ -39,7 +39,8 @@
         "symfony/string": "^5.1",
         "symfony/deprecation-contracts": "2.5.4",
         "phpoffice/phpspreadsheet": "^3.10",
-        "maennchen/zipstream-php": "^2.1"
+        "maennchen/zipstream-php": "^2.1",
+        "sentry/sentry": "^4.19"
     },
     "autoload": {
         "classmap": [
