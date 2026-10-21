@@ -6,7 +6,7 @@
 # `docker build -f Dockerfile.swoole` and docker-compose.swoole.yml.
 # The `test` stage adds dev dependencies for native Linux regression runs:
 # `docker build -f Dockerfile.swoole --target test`.
-FROM php:8.3.30-cli-bookworm AS runtime
+FROM php:8.3.36-cli-bookworm AS runtime
 
 LABEL org.opencontainers.image.title="Kanboard Swoole experiment" \
     org.opencontainers.image.description="Experimental native Linux Swoole runtime for Kanboard, not a production migration" \

@@ -8,11 +8,12 @@ deployment are unchanged.
 
 ## Runtime contract (pinned)
 
-- Base image: `php:8.3.30-cli-bookworm` (Debian bookworm native PHP 8.3
-  CLI; re-pinned 8.2.28 -> 8.3.26 -> 8.3.28 -> 8.3.30 as supported patches
+- Base image: `php:8.3.36-cli-bookworm` (Debian bookworm native PHP 8.3
+  CLI; re-pinned 8.2.28 -> 8.3.26 -> 8.3.28 -> 8.3.30 -> 8.3.36 (php2shell,
+  CVE-2026-109618/109619) as supported patches
   were verified on Docker Hub (arm64 manifests) plus php.net
   distribution tarballs).
-- Tag-pinned, not digest-pinned: `php:8.3.30-cli-bookworm`,
+- Tag-pinned, not digest-pinned: `php:8.3.36-cli-bookworm`,
   `mariadb:11.4.13` and the `composer:2.10.3` build image are the tested
   snapshot for this experiment, not immutable guarantees.
 - Swoole: `6.2.3` via PECL (`SWOOLE_VERSION` build arg), the PECL stable
