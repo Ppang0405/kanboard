@@ -154,7 +154,7 @@ class FileViewerController extends BaseController
     {
         $file = $this->getFile();
 
-        if ($file['model'] !== 'taskFileModel' || $file['is_image'] != 1) {
+        if (! $this->taskFileModel->isCoverEnabled() || $file['model'] !== 'taskFileModel' || $file['is_image'] != 1) {
             throw new PageNotFoundException();
         }
 

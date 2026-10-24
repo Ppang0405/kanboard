@@ -142,6 +142,17 @@ class TaskFileModel extends FileModel
     }
 
     /**
+     * Check if card covers are enabled for this instance
+     *
+     * @access public
+     * @return bool
+     */
+    public function isCoverEnabled()
+    {
+        return TASK_COVERS_ENABLED;
+    }
+
+    /**
      * Use an image attached to the task as card cover
      *
      * @access public
@@ -151,6 +162,10 @@ class TaskFileModel extends FileModel
      */
     public function setCover($task_id, $file_id)
     {
+        if (! $this->isCoverEnabled()) {
+            return false;
+        }
+
         $file = $this->getById($file_id);
 
         if (empty($file) || $file['task_id'] != $task_id || $file['is_image'] != 1) {
@@ -181,6 +196,10 @@ class TaskFileModel extends FileModel
      */
     protected function selectAutomaticCover($task_id, $file_id)
     {
+        if (! $this->isCoverEnabled()) {
+            return;
+        }
+
         $task = $this->taskFinderModel->getById($task_id);
 
         if (empty($task) || ! empty($task['cover_image_id'])) {

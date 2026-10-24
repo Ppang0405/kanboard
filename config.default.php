@@ -298,3 +298,6 @@ define('EXTERNAL_LINK_ALLOW_PRIVATE_NETWORKS', false);
 
 // Allow private network access for webhook notifications
 define('WEBHOOK_ALLOW_PRIVATE_NETWORKS', false);
+
+// Show cover images on board cards, set to false to disable the feature for all projects
+define('TASK_COVERS_ENABLED', true);

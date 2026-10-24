@@ -5,6 +5,7 @@ namespace KanboardTests\units\Helper;
 use KanboardTests\units\Base;
 use Kanboard\Helper\TaskHelper;
 use Kanboard\Model\ProjectModel;
+use Kanboard\Model\TaskFileModel;
 
 class TaskHelperTest extends Base
 {
@@ -39,5 +40,23 @@ class TaskHelperTest extends Base
         $this->assertEquals('thumbnail', $helper->getCoverLayout(array('cover_layout' => ProjectModel::COVER_LAYOUT_THUMBNAIL), $task));
         $this->assertEquals('', $helper->getCoverLayout(array('cover_layout' => ProjectModel::COVER_LAYOUT_NONE), $task));
         $this->assertEquals('', $helper->getCoverLayout(array('cover_layout' => ProjectModel::COVER_LAYOUT_FULL), array('project_id' => 1, 'cover_image_id' => null, 'cover_image_path' => null)));
+    }
+
+    public function testGetCoverLayoutWhenCoversAreDisabled()
+    {
+        $fileModel = $this
+            ->getMockBuilder(TaskFileModel::class)
+            ->setConstructorArgs(array($this->container))
+            ->onlyMethods(array('isCoverEnabled'))
+            ->getMock();
+
+        $fileModel->expects($this->atLeastOnce())->method('isCoverEnabled')->willReturn(false);
+        $this->container['taskFileModel'] = $fileModel;
+
+        $helper = new TaskHelper($this->container);
+        $task = array('project_id' => 1, 'cover_image_id' => 3, 'cover_image_path' => 'tasks/1/abc');
+
+        $this->assertFalse($helper->isCoverEnabled());
+        $this->assertEquals('', $helper->getCoverLayout(array('cover_layout' => ProjectModel::COVER_LAYOUT_FULL), $task));
     }
 }

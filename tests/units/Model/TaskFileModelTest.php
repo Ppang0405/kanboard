@@ -619,4 +619,32 @@ class TaskFileModelTest extends Base
         $this->assertNull($tasks[1]['cover_image_id']);
         $this->assertNull($tasks[1]['cover_image_path']);
     }
+
+    public function testCoversDisabled()
+    {
+        $fileModel = $this
+            ->getMockBuilder(TaskFileModel::class)
+            ->setConstructorArgs(array($this->container))
+            ->onlyMethods(array('isCoverEnabled'))
+            ->getMock();
+
+        $fileModel->expects($this->atLeastOnce())->method('isCoverEnabled')->willReturn(false);
+        $this->container['taskFileModel'] = $fileModel;
+
+        $projectModel = new ProjectModel($this->container);
+        $taskCreationModel = new TaskCreationModel($this->container);
+        $taskFinderModel = new TaskFinderModel($this->container);
+
+        $this->assertEquals(1, $projectModel->create(array('name' => 'test')));
+        $this->assertEquals(1, $taskCreationModel->create(array('project_id' => 1, 'title' => 'test')));
+        $this->assertEquals(1, $fileModel->create(1, 'image.png', 'tmp/image', 10));
+        $this->assertFalse($fileModel->setCover(1, 1));
+
+        $task = $taskFinderModel->getById(1);
+        $this->assertEmpty($task['cover_image_id']);
+
+        $tasks = $taskFinderModel->getExtendedQuery()->findAll();
+        $this->assertArrayNotHasKey('cover_image_id', $tasks[0]);
+        $this->assertArrayNotHasKey('cover_image_path', $tasks[0]);
+    }
 }

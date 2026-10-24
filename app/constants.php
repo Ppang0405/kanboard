@@ -191,3 +191,6 @@ defined('EXTERNAL_LINK_ALLOW_PRIVATE_NETWORKS') or define('EXTERNAL_LINK_ALLOW_P
 
 // Allow private network access for webhook notifications
 defined('WEBHOOK_ALLOW_PRIVATE_NETWORKS') or define('WEBHOOK_ALLOW_PRIVATE_NETWORKS', getenv('WEBHOOK_ALLOW_PRIVATE_NETWORKS') ? strtolower(getenv('WEBHOOK_ALLOW_PRIVATE_NETWORKS')) === 'true' : false);
+
+// Card cover images on the board, set to false to disable the feature for all projects
+defined('TASK_COVERS_ENABLED') or define('TASK_COVERS_ENABLED', getenv('TASK_COVERS_ENABLED') ? strtolower(getenv('TASK_COVERS_ENABLED')) === 'true' : true);

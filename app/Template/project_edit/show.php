@@ -36,6 +36,7 @@
         <?= $this->form->number('task_limit', $values, $errors, array('tabindex' => 6, 'min="0"')) ?>
     </fieldset>
 
+    <?php if ($this->task->isCoverEnabled()): ?>
     <fieldset>
         <legend><?= t('Card covers') ?></legend>
 
@@ -46,6 +47,7 @@
         <?= $this->form->checkbox('cover_auto', t('Use the first image attached to a task as its cover'), 1, isset($values['cover_auto']) && $values['cover_auto'] == 1) ?>
         <p class="form-help"><?= t('You can change or remove the cover of each task from its attachments.') ?></p>
     </fieldset>
+    <?php endif ?>
 
     <fieldset>
         <legend><?= t('Permissions and ownership') ?></legend>

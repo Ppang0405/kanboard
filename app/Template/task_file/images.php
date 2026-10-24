@@ -2,7 +2,7 @@
     <div class="file-thumbnails">
         <?php foreach ($images as $file): ?>
             <div class="file-thumbnail">
-                <?php if ($task['cover_image_id'] == $file['id']): ?>
+                <?php if ($this->task->isCoverEnabled() && $task['cover_image_id'] == $file['id']): ?>
                     <span class="file-thumbnail-cover-badge"><?= t('Cover') ?></span>
                 <?php endif ?>
                 <?= $this->app->component('image-slideshow', array(
@@ -28,7 +28,7 @@
                                 <li>
                                     <?= $this->url->icon('download', t('Download'), 'FileViewerController', 'download', array('task_id' => $task['id'], 'file_id' => $file['id'], 'etag' => $file['etag'])) ?>
                                 </li>
-                                <?php if ($this->user->hasProjectAccess('TaskFileController', 'setCover', $task['project_id'])): ?>
+                                <?php if ($this->task->isCoverEnabled() && $this->user->hasProjectAccess('TaskFileController', 'setCover', $task['project_id'])): ?>
                                     <li>
                                         <?php if ($task['cover_image_id'] == $file['id']): ?>
                                             <?= $this->url->icon('eye-slash', t('Remove cover'), 'TaskFileController', 'removeCover', array('task_id' => $task['id']), true) ?>

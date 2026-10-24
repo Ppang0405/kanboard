@@ -380,6 +380,17 @@ class TaskHelper extends Base
     }
 
     /**
+     * Check if card covers are enabled for this instance
+     *
+     * @access public
+     * @return bool
+     */
+    public function isCoverEnabled()
+    {
+        return $this->taskFileModel->isCoverEnabled();
+    }
+
+    /**
      * Get the card cover layout of a task, empty when no cover is displayed
      *
      * @access public
@@ -389,6 +400,10 @@ class TaskHelper extends Base
      */
     public function getCoverLayout(array $project, array $task)
     {
+        if (! $this->isCoverEnabled()) {
+            return '';
+        }
+
         if (empty($task['cover_image_id']) || empty($task['cover_image_path'])) {
             return '';
         }

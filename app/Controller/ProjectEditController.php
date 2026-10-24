@@ -67,7 +67,12 @@ class ProjectEditController extends BaseController
     private function prepareValues(array $project, array $values)
     {
         $values['id'] = $project['id'];
-        $values['cover_auto'] = empty($values['cover_auto']) ? 0 : 1;
+
+        if ($this->taskFileModel->isCoverEnabled()) {
+            $values['cover_auto'] = empty($values['cover_auto']) ? 0 : 1;
+        } else {
+            unset($values['cover_layout'], $values['cover_auto']);
+        }
 
         if (isset($values['is_private'])) {
             if (! $this->helper->user->hasProjectAccess('ProjectCreationController', 'create', $project['id'])) {
