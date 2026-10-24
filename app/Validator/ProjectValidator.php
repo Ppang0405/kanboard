@@ -35,6 +35,8 @@ class ProjectValidator extends BaseValidator
             new Validators\AlphaNumeric('identifier', t('This value must be alphanumeric')),
             new Validators\Unique('identifier', t('The identifier must be unique'), $this->db->getConnection(), ProjectModel::TABLE),
             new Validators\Email('email', t('Email address invalid')),
+            new Validators\InArray('cover_layout', array_keys($this->projectModel->getCoverLayouts()), t('This cover layout is invalid')),
+            new Validators\Integer('cover_auto', t('This value must be an integer')),
             new Validators\Unique('email', t('The project email must be unique across all projects'), $this->db->getConnection(), ProjectModel::TABLE),
         );
     }

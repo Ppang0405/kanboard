@@ -10,6 +10,7 @@
 }
 
 .file-thumbnail {
+    position: relative;
     width: 250px;
     border: 1px solid #efefef;
     border-radius: 5px;

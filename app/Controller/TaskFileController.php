@@ -91,6 +91,45 @@ class TaskFileController extends BaseController
     }
 
     /**
+     * Use an image as card cover
+     *
+     * @access public
+     */
+    public function setCover()
+    {
+        $this->checkCSRFParam();
+        $task = $this->getTask();
+        $file = $this->getFile();
+
+        if ($file['task_id'] == $task['id'] && $this->taskFileModel->setCover($task['id'], $file['id'])) {
+            $this->flash->success(t('Card cover updated successfully.'));
+        } else {
+            $this->flash->failure(t('Unable to update the card cover.'));
+        }
+
+        $this->response->redirect($this->helper->url->to('TaskViewController', 'show', array('task_id' => $task['id'])));
+    }
+
+    /**
+     * Stop using an image as card cover, the image stays attached to the task
+     *
+     * @access public
+     */
+    public function removeCover()
+    {
+        $this->checkCSRFParam();
+        $task = $this->getTask();
+
+        if ($this->taskFileModel->removeCover($task['id'])) {
+            $this->flash->success(t('Card cover removed successfully.'));
+        } else {
+            $this->flash->failure(t('Unable to update the card cover.'));
+        }
+
+        $this->response->redirect($this->helper->url->to('TaskViewController', 'show', array('task_id' => $task['id'])));
+    }
+
+    /**
      * Confirmation dialog before removing a file
      *
      * @access public

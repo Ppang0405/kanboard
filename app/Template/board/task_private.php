@@ -1,5 +1,7 @@
+<?php $cover_layout = $this->task->getCoverLayout($project, $task) ?>
 <div class="
         task-board
+        <?= $cover_layout ? 'task-board-cover-'.$cover_layout : '' ?>
         <?= $task['is_draggable'] ? 'draggable-item ' : '' ?>
         <?= $task['is_active'] == 1 ? 'task-board-status-open '.($task['date_modification'] > (time() - $board_highlight_period) ? 'task-board-recent' : '') : 'task-board-status-closed' ?>
         color-<?= $task['color_id'] ?>"
@@ -36,6 +38,9 @@
     <?php else: ?>
         <div class="task-board-expanded">
             <div class="task-board-saving-icon" style="display: none;"><i class="fa fa-spinner fa-pulse fa-2x"></i></div>
+            <?php if ($cover_layout === 'banner' || $cover_layout === 'full'): ?>
+                <?= $this->render('board/task_cover', array('task' => $task, 'layout' => $cover_layout)) ?>
+            <?php endif ?>
             <div class="task-board-header">
                 <?php if ($this->user->hasProjectAccess('TaskModificationController', 'edit', $task['project_id'])): ?>
                     <?= $this->render('task/dropdown', array('task' => $task, 'redirect' => 'board')) ?>
@@ -55,17 +60,27 @@
                 <?= $this->render('board/task_avatar', array('task' => $task)) ?>
             </div>
 
-            <?= $this->hook->render('template:board:private:task:before-title', array('task' => $task)) ?>
-            <div class="task-board-title">
-                <?= $this->url->link($this->text->e($task['title']), 'TaskViewController', 'show', array('task_id' => $task['id'])) ?>
-            </div>
-            <?= $this->hook->render('template:board:private:task:after-title', array('task' => $task)) ?>
+            <div class="task-board-body">
+                <?php if ($cover_layout === 'thumbnail'): ?>
+                    <?= $this->render('board/task_cover', array('task' => $task, 'layout' => $cover_layout)) ?>
+                <?php endif ?>
 
-            <?= $this->render('board/task_footer', array(
-                'task' => $task,
-                'not_editable' => $not_editable,
-                'project' => $project,
-            )) ?>
+                <?= $this->hook->render('template:board:private:task:before-title', array('task' => $task)) ?>
+                <div class="task-board-title">
+                    <?= $this->url->link($this->text->e($task['title']), 'TaskViewController', 'show', array('task_id' => $task['id'])) ?>
+                </div>
+                <?= $this->hook->render('template:board:private:task:after-title', array('task' => $task)) ?>
+
+                <?php if ($cover_layout === 'strip'): ?>
+                    <?= $this->render('board/task_cover', array('task' => $task, 'layout' => $cover_layout)) ?>
+                <?php endif ?>
+
+                <?= $this->render('board/task_footer', array(
+                    'task' => $task,
+                    'not_editable' => $not_editable,
+                    'project' => $project,
+                )) ?>
+            </div>
         </div>
     <?php endif ?>
 </div>

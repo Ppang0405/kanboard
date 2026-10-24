@@ -71,4 +71,18 @@ class ProjectValidatorTest extends Base
         $r = $projectValidator->validateModification(array('id' => 1, 'name' => null));
         $this->assertFalse($r[0]);
     }
+
+    public function testValidateCoverLayout()
+    {
+        $projectValidator = new ProjectValidator($this->container);
+        $projectModel = new ProjectModel($this->container);
+
+        $this->assertEquals(1, $projectModel->create(array('name' => 'UnitTest')));
+
+        $r = $projectValidator->validateModification(array('id' => 1, 'name' => 'test', 'cover_layout' => ProjectModel::COVER_LAYOUT_BANNER, 'cover_auto' => 0));
+        $this->assertTrue($r[0]);
+
+        $r = $projectValidator->validateModification(array('id' => 1, 'name' => 'test', 'cover_layout' => 'gallery'));
+        $this->assertFalse($r[0]);
+    }
 }

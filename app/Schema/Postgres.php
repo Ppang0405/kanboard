@@ -8,7 +8,14 @@ use PDO;
 use Kanboard\Core\Security\Token;
 use Kanboard\Core\Security\Role;
 
-const VERSION = 117;
+const VERSION = 118;
+
+function version_118(PDO $pdo)
+{
+    $pdo->exec('ALTER TABLE "projects" ADD COLUMN "cover_layout" VARCHAR(20) NOT NULL DEFAULT \'full\'');
+    $pdo->exec('ALTER TABLE "projects" ADD COLUMN "cover_auto" BOOLEAN DEFAULT TRUE');
+    $pdo->exec('ALTER TABLE "tasks" ADD COLUMN "cover_image_id" INTEGER DEFAULT NULL');
+}
 
 function version_117(PDO $pdo)
 {

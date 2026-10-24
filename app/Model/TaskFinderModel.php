@@ -128,7 +128,8 @@ class TaskFinderModel extends Base
                 ColumnModel::TABLE.'.title AS column_name',
                 ColumnModel::TABLE.'.position AS column_position',
                 SwimlaneModel::TABLE.'.name AS swimlane_name',
-                ProjectModel::TABLE.'.name AS project_name'
+                ProjectModel::TABLE.'.name AS project_name',
+                ...$this->getCoverColumns()
             )
             ->join(UserModel::TABLE, 'id', 'owner_id', TaskModel::TABLE)
             ->left(UserModel::TABLE, 'uc', 'id', TaskModel::TABLE, 'creator_id')
@@ -136,6 +137,24 @@ class TaskFinderModel extends Base
             ->join(ColumnModel::TABLE, 'id', 'column_id', TaskModel::TABLE)
             ->join(SwimlaneModel::TABLE, 'id', 'swimlane_id', TaskModel::TABLE)
             ->join(ProjectModel::TABLE, 'id', 'project_id', TaskModel::TABLE);
+    }
+
+    /**
+     * Columns used to display the card cover, none when covers are disabled
+     *
+     * @access protected
+     * @return array
+     */
+    protected function getCoverColumns()
+    {
+        if (! $this->taskFileModel->isCoverEnabled()) {
+            return array();
+        }
+
+        return array(
+            TaskModel::TABLE.'.cover_image_id',
+            '(SELECT path FROM '.TaskFileModel::TABLE.' WHERE '.TaskFileModel::TABLE.'.id = tasks.cover_image_id) AS cover_image_path',
+        );
     }
 
     /**

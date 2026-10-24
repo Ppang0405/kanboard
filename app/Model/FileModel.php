@@ -222,7 +222,7 @@ abstract class FileModel extends Base
                 $this->objectStorage->remove($file['path']);
 
                 if ($file['is_image'] == 1) {
-                    $this->objectStorage->remove($this->getThumbnailPath($file['path']));
+                    $this->removeImageVariants($file['path']);
                 }
             }
 
@@ -231,6 +231,17 @@ abstract class FileModel extends Base
             $this->logger->error($e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * Remove the files generated from an image
+     *
+     * @access protected
+     * @param  string $key  Storage key of the original image
+     */
+    protected function removeImageVariants($key)
+    {
+        $this->objectStorage->remove($this->getThumbnailPath($key));
     }
 
     /**

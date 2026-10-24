@@ -161,6 +161,8 @@ class ProjectDuplicationModel extends Base
             'priority_end' => $project['priority_end'],
             'per_swimlane_task_limits' => empty($project['per_swimlane_task_limits']) ? 0 : 1,
             'task_limit' => $project['task_limit'],
+            'cover_layout' => $project['cover_layout'],
+            'cover_auto' => empty($project['cover_auto']) ? 0 : 1,
             'identifier' => $identifier,
         );
 

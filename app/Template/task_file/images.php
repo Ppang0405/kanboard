@@ -2,6 +2,9 @@
     <div class="file-thumbnails">
         <?php foreach ($images as $file): ?>
             <div class="file-thumbnail">
+                <?php if ($this->task->isCoverEnabled() && $task['cover_image_id'] == $file['id']): ?>
+                    <span class="file-thumbnail-cover-badge"><?= t('Cover') ?></span>
+                <?php endif ?>
                 <?= $this->app->component('image-slideshow', array(
                     'images' => $images,
                     'image' => $file,
@@ -25,6 +28,15 @@
                                 <li>
                                     <?= $this->url->icon('download', t('Download'), 'FileViewerController', 'download', array('task_id' => $task['id'], 'file_id' => $file['id'], 'etag' => $file['etag'])) ?>
                                 </li>
+                                <?php if ($this->task->isCoverEnabled() && $this->user->hasProjectAccess('TaskFileController', 'setCover', $task['project_id'])): ?>
+                                    <li>
+                                        <?php if ($task['cover_image_id'] == $file['id']): ?>
+                                            <?= $this->url->icon('eye-slash', t('Remove cover'), 'TaskFileController', 'removeCover', array('task_id' => $task['id']), true) ?>
+                                        <?php else: ?>
+                                            <?= $this->url->icon('picture-o', t('Set as cover'), 'TaskFileController', 'setCover', array('task_id' => $task['id'], 'file_id' => $file['id']), true) ?>
+                                        <?php endif ?>
+                                    </li>
+                                <?php endif ?>
                                 <?php if ($this->user->hasProjectAccess('TaskFileController', 'remove', $task['project_id'])): ?>
                                     <li>
                                         <?= $this->modal->confirm('trash-o', t('Remove'), 'TaskFileController', 'confirm', array('task_id' => $task['id'], 'file_id' => $file['id'])) ?>

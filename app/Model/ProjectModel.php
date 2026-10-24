@@ -52,6 +52,34 @@ class ProjectModel extends Base
     const TYPE_TEAM = 0;
 
     /**
+     * Card cover layouts
+     *
+     * @var string
+     */
+    const COVER_LAYOUT_NONE      = 'none';
+    const COVER_LAYOUT_BANNER    = 'banner';
+    const COVER_LAYOUT_STRIP     = 'strip';
+    const COVER_LAYOUT_THUMBNAIL = 'thumbnail';
+    const COVER_LAYOUT_FULL      = 'full';
+
+    /**
+     * Get the list of card cover layouts
+     *
+     * @access public
+     * @return array
+     */
+    public function getCoverLayouts()
+    {
+        return array(
+            self::COVER_LAYOUT_FULL      => t('Full cover'),
+            self::COVER_LAYOUT_BANNER    => t('Top banner'),
+            self::COVER_LAYOUT_STRIP     => t('Inset strip'),
+            self::COVER_LAYOUT_THUMBNAIL => t('Side thumbnail'),
+            self::COVER_LAYOUT_NONE      => t('No cover'),
+        );
+    }
+
+    /**
      * Get a project by the id
      *
      * @access public
@@ -481,7 +509,7 @@ class ProjectModel extends Base
 
         $values['per_swimlane_task_limits'] = empty($values['per_swimlane_task_limits']) ? 0 : 1;
 
-        $this->helper->model->convertIntegerFields($values, array('priority_default', 'priority_start', 'priority_end', 'task_limit'));
+        $this->helper->model->convertIntegerFields($values, array('priority_default', 'priority_start', 'priority_end', 'task_limit', 'cover_auto'));
 
         $updates = $values;
         unset($updates['id']);

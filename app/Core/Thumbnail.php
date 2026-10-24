@@ -134,6 +134,48 @@ class Thumbnail
     }
 
     /**
+     * Scale down the image to a maximum width, keeping the aspect ratio
+     *
+     * Transparent areas are flattened on a white background and very tall
+     * images are cropped from the top to keep the output small.
+     *
+     * @access public
+     * @param  integer $maxWidth
+     * @param  integer $maxHeight
+     * @return $this
+     */
+    public function fitWidth($maxWidth, $maxHeight)
+    {
+        $srcWidth = $this->metadata[0];
+        $srcHeight = $this->metadata[1];
+
+        $dstWidth = min($maxWidth, $srcWidth);
+        $ratio = $dstWidth / $srcWidth;
+        $dstHeight = min($maxHeight, max(1, (int) round($srcHeight * $ratio)));
+        $srcHeight = min($srcHeight, (int) round($dstHeight / $ratio));
+
+        $this->dstImage = imagecreatetruecolor($dstWidth, $dstHeight);
+        imagefill($this->dstImage, 0, 0, imagecolorallocate($this->dstImage, 255, 255, 255));
+        imagecopyresampled($this->dstImage, $this->srcImage, 0, 0, 0, 0, $dstWidth, $dstHeight, $srcWidth, $srcHeight);
+
+        return $this;
+    }
+
+    /**
+     * Get the JPEG image as string
+     *
+     * @access public
+     * @param  integer $quality
+     * @return string
+     */
+    public function toJpegString($quality = 82)
+    {
+        ob_start();
+        imagejpeg($this->dstImage, null, $quality);
+        return ob_get_clean();
+    }
+
+    /**
      * Save the thumbnail to a local file
      *
      * @access public
