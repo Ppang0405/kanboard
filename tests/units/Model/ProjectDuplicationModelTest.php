@@ -663,4 +663,17 @@ class ProjectDuplicationModelTest extends Base
         $this->assertEquals('With Per-Swimlane Task Limits (Clone)', $project['name']);
         $this->assertEquals(1, $project['per_swimlane_task_limits']);
     }
+
+    public function testCloneProjectWithCoverSettings()
+    {
+        $projectModel = new ProjectModel($this->container);
+        $projectDuplicationModel = new ProjectDuplicationModel($this->container);
+
+        $this->assertEquals(1, $projectModel->create(array('name' => 'Covers', 'cover_layout' => ProjectModel::COVER_LAYOUT_STRIP, 'cover_auto' => 0)));
+        $this->assertEquals(2, $projectDuplicationModel->duplicate(1));
+
+        $project = $projectModel->getById(2);
+        $this->assertEquals(ProjectModel::COVER_LAYOUT_STRIP, $project['cover_layout']);
+        $this->assertEquals(0, $project['cover_auto']);
+    }
 }

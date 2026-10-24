@@ -2,6 +2,7 @@
 
 namespace Kanboard\Controller;
 
+use Kanboard\Core\Controller\PageNotFoundException;
 use Kanboard\Core\ObjectStorage\ObjectStorageException;
 
 /**
@@ -140,6 +141,42 @@ class FileViewerController extends BaseController
                 $data = $this->objectStorage->get($file['path']);
                 $this->$model->generateThumbnailFromData($file['path'], $data);
                 $this->objectStorage->output($this->$model->getThumbnailPath($file['path']));
+            }
+        }
+    }
+
+    /**
+     * Display the image used as card cover, generated on first access
+     *
+     * @access public
+     */
+    public function cover()
+    {
+        $file = $this->getFile();
+
+        if ($file['model'] !== 'taskFileModel' || $file['is_image'] != 1) {
+            throw new PageNotFoundException();
+        }
+
+        $filename = $this->taskFileModel->getCoverPath($file['path']);
+
+        $this->response->withCache(5 * 86400, $file['etag']);
+        $this->response->withContentType('image/jpeg');
+
+        if ($this->request->getHeader('If-None-Match') === '"'.$file['etag'].'"') {
+            $this->response->status(304);
+        } else {
+            $this->response->send();
+
+            try {
+                $this->objectStorage->output($filename);
+            } catch (ObjectStorageException $e) {
+                try {
+                    $this->taskFileModel->generateCover($file['path']);
+                    $this->objectStorage->output($filename);
+                } catch (ObjectStorageException $e) {
+                    $this->logger->error($e->getMessage());
+                }
             }
         }
     }

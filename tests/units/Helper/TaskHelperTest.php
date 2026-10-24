@@ -4,6 +4,7 @@ namespace KanboardTests\units\Helper;
 
 use KanboardTests\units\Base;
 use Kanboard\Helper\TaskHelper;
+use Kanboard\Model\ProjectModel;
 
 class TaskHelperTest extends Base
 {
@@ -27,5 +28,16 @@ class TaskHelperTest extends Base
             '<span class="task-priority" title="Task priority"><span class="ui-helper-hidden-accessible">Task priority </span>-P6</span>',
             $helper->renderPriority(-6)
         );
+    }
+
+    public function testGetCoverLayout()
+    {
+        $helper = new TaskHelper($this->container);
+        $task = array('project_id' => 1, 'cover_image_id' => 3, 'cover_image_path' => 'tasks/1/abc');
+
+        $this->assertEquals('full', $helper->getCoverLayout(array('cover_layout' => ProjectModel::COVER_LAYOUT_FULL), $task));
+        $this->assertEquals('thumbnail', $helper->getCoverLayout(array('cover_layout' => ProjectModel::COVER_LAYOUT_THUMBNAIL), $task));
+        $this->assertEquals('', $helper->getCoverLayout(array('cover_layout' => ProjectModel::COVER_LAYOUT_NONE), $task));
+        $this->assertEquals('', $helper->getCoverLayout(array('cover_layout' => ProjectModel::COVER_LAYOUT_FULL), array('project_id' => 1, 'cover_image_id' => null, 'cover_image_path' => null)));
     }
 }

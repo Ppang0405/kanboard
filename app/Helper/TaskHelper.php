@@ -3,6 +3,7 @@
 namespace Kanboard\Helper;
 
 use Kanboard\Core\Base;
+use Kanboard\Model\ProjectModel;
 
 /**
  * Task helpers
@@ -376,5 +377,30 @@ class TaskHelper extends Base
         $html .= '</div>';
 
         return $html;
+    }
+
+    /**
+     * Get the card cover layout of a task, empty when no cover is displayed
+     *
+     * @access public
+     * @param  array $project
+     * @param  array $task
+     * @return string
+     */
+    public function getCoverLayout(array $project, array $task)
+    {
+        if (empty($task['cover_image_id']) || empty($task['cover_image_path'])) {
+            return '';
+        }
+
+        if (empty($project['cover_layout']) || $project['cover_layout'] === ProjectModel::COVER_LAYOUT_NONE) {
+            return '';
+        }
+
+        if ($this->helper->board->isCollapsed($task['project_id'])) {
+            return '';
+        }
+
+        return $project['cover_layout'];
     }
 }

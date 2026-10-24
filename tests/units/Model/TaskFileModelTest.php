@@ -3,7 +3,9 @@
 namespace KanboardTests\units\Model;
 
 use KanboardTests\units\Base;
+use Kanboard\Core\ObjectStorage\ObjectStorageException;
 use Kanboard\Model\TaskFileModel;
+use Kanboard\Model\TaskFinderModel;
 use Kanboard\Model\TaskCreationModel;
 use Kanboard\Model\ProjectModel;
 
@@ -423,14 +425,13 @@ class TaskFileModelTest extends Base
         $this->assertEquals(1, $taskCreationModel->create(array('project_id' => 1, 'title' => 'test')));
         $this->assertEquals(1, $fileModel->create(1, 'image.gif', 'tmp/image.gif', 10));
 
+        $expected = array('tmp/image.gif', 'thumbnails'.DIRECTORY_SEPARATOR.'tmp/image.gif', 'covers'.DIRECTORY_SEPARATOR.'tmp/image.gif');
+
         $this->container['objectStorage']
-            ->expects($this->exactly(2))
+            ->expects($this->exactly(3))
             ->method('remove')
-            ->willReturnCallback(function ($path) {
-                static $calls = 0;
-                $calls++;
-                $expected = $calls === 1 ? 'tmp/image.gif' : 'thumbnails'.DIRECTORY_SEPARATOR.'tmp/image.gif';
-                $this->assertEquals($expected, $path);
+            ->willReturnCallback(function ($path) use (&$expected) {
+                $this->assertEquals(array_shift($expected), $path);
             });
 
         $this->assertTrue($fileModel->remove(1));
@@ -466,5 +467,156 @@ class TaskFileModelTest extends Base
         $this->assertEquals(1, $fileModel->create(1, 'test', '/tmp/foobar', 10));
         $this->assertEquals(1, $fileModel->getProjectId(1));
         $this->assertEquals(0, $fileModel->getProjectId(2));
+    }
+
+    public function testRemoveImageWithoutGeneratedCover()
+    {
+        $fileModel = new TaskFileModel($this->container);
+        $projectModel = new ProjectModel($this->container);
+        $taskCreationModel = new TaskCreationModel($this->container);
+
+        $this->assertEquals(1, $projectModel->create(array('name' => 'test')));
+        $this->assertEquals(1, $taskCreationModel->create(array('project_id' => 1, 'title' => 'test')));
+        $this->assertEquals(1, $fileModel->create(1, 'image.gif', 'tmp/image.gif', 10));
+
+        $this->container['objectStorage']
+            ->expects($this->exactly(3))
+            ->method('remove')
+            ->willReturnCallback(function ($path) {
+                if (strpos($path, 'covers') === 0) {
+                    throw new ObjectStorageException('Invalid file path: '.$path);
+                }
+            });
+
+        $this->assertTrue($fileModel->remove(1));
+    }
+
+    public function testGetCoverPath()
+    {
+        $fileModel = new TaskFileModel($this->container);
+        $this->assertEquals('covers'.DIRECTORY_SEPARATOR.'test', $fileModel->getCoverPath('test'));
+    }
+
+    public function testAutomaticCoverWithFirstImage()
+    {
+        $fileModel = new TaskFileModel($this->container);
+        $projectModel = new ProjectModel($this->container);
+        $taskCreationModel = new TaskCreationModel($this->container);
+        $taskFinderModel = new TaskFinderModel($this->container);
+
+        $this->assertEquals(1, $projectModel->create(array('name' => 'test')));
+        $this->assertEquals(1, $taskCreationModel->create(array('project_id' => 1, 'title' => 'test')));
+
+        $this->assertEquals(1, $fileModel->create(1, 'document.pdf', 'tmp/document', 10));
+        $task = $taskFinderModel->getById(1);
+        $this->assertEmpty($task['cover_image_id']);
+
+        $this->assertEquals(2, $fileModel->create(1, 'first.png', 'tmp/first', 10));
+        $this->assertEquals(3, $fileModel->create(1, 'second.png', 'tmp/second', 10));
+
+        $task = $taskFinderModel->getById(1);
+        $this->assertEquals(2, $task['cover_image_id']);
+    }
+
+    public function testAutomaticCoverWhenDisabled()
+    {
+        $fileModel = new TaskFileModel($this->container);
+        $projectModel = new ProjectModel($this->container);
+        $taskCreationModel = new TaskCreationModel($this->container);
+        $taskFinderModel = new TaskFinderModel($this->container);
+
+        $this->assertEquals(1, $projectModel->create(array('name' => 'test', 'cover_auto' => 0)));
+        $this->assertEquals(1, $taskCreationModel->create(array('project_id' => 1, 'title' => 'test')));
+        $this->assertEquals(1, $fileModel->create(1, 'first.png', 'tmp/first', 10));
+
+        $task = $taskFinderModel->getById(1);
+        $this->assertEmpty($task['cover_image_id']);
+    }
+
+    public function testAutomaticCoverIsNotSelectedAgainAfterRemovingCover()
+    {
+        $fileModel = new TaskFileModel($this->container);
+        $projectModel = new ProjectModel($this->container);
+        $taskCreationModel = new TaskCreationModel($this->container);
+        $taskFinderModel = new TaskFinderModel($this->container);
+
+        $this->assertEquals(1, $projectModel->create(array('name' => 'test')));
+        $this->assertEquals(1, $taskCreationModel->create(array('project_id' => 1, 'title' => 'test')));
+        $this->assertEquals(1, $fileModel->create(1, 'first.png', 'tmp/first', 10));
+        $this->assertTrue($fileModel->removeCover(1));
+        $this->assertEquals(2, $fileModel->create(1, 'second.png', 'tmp/second', 10));
+
+        $task = $taskFinderModel->getById(1);
+        $this->assertEmpty($task['cover_image_id']);
+    }
+
+    public function testSetCover()
+    {
+        $fileModel = new TaskFileModel($this->container);
+        $projectModel = new ProjectModel($this->container);
+        $taskCreationModel = new TaskCreationModel($this->container);
+        $taskFinderModel = new TaskFinderModel($this->container);
+
+        $this->assertEquals(1, $projectModel->create(array('name' => 'test', 'cover_auto' => 0)));
+        $this->assertEquals(1, $taskCreationModel->create(array('project_id' => 1, 'title' => 'task 1')));
+        $this->assertEquals(2, $taskCreationModel->create(array('project_id' => 1, 'title' => 'task 2')));
+        $this->assertEquals(1, $fileModel->create(1, 'image.png', 'tmp/image', 10));
+        $this->assertEquals(2, $fileModel->create(1, 'document.pdf', 'tmp/document', 10));
+        $this->assertEquals(3, $fileModel->create(2, 'other.png', 'tmp/other', 10));
+
+        $this->assertTrue($fileModel->setCover(1, 1));
+        $this->assertFalse($fileModel->setCover(1, 2));
+        $this->assertFalse($fileModel->setCover(1, 3));
+        $this->assertFalse($fileModel->setCover(1, 42));
+
+        $task = $taskFinderModel->getById(1);
+        $this->assertEquals(1, $task['cover_image_id']);
+
+        $this->assertTrue($fileModel->removeCover(1));
+
+        $task = $taskFinderModel->getById(1);
+        $this->assertNull($task['cover_image_id']);
+
+        $file = $fileModel->getById(1);
+        $this->assertEquals('image.png', $file['name']);
+    }
+
+    public function testRemoveFileUsedAsCover()
+    {
+        $fileModel = new TaskFileModel($this->container);
+        $projectModel = new ProjectModel($this->container);
+        $taskCreationModel = new TaskCreationModel($this->container);
+        $taskFinderModel = new TaskFinderModel($this->container);
+
+        $this->assertEquals(1, $projectModel->create(array('name' => 'test')));
+        $this->assertEquals(1, $taskCreationModel->create(array('project_id' => 1, 'title' => 'test')));
+        $this->assertEquals(1, $fileModel->create(1, 'image.png', 'tmp/image', 10));
+
+        $task = $taskFinderModel->getById(1);
+        $this->assertEquals(1, $task['cover_image_id']);
+
+        $this->assertTrue($fileModel->remove(1));
+
+        $task = $taskFinderModel->getById(1);
+        $this->assertNull($task['cover_image_id']);
+    }
+
+    public function testCoverInBoardQuery()
+    {
+        $fileModel = new TaskFileModel($this->container);
+        $projectModel = new ProjectModel($this->container);
+        $taskCreationModel = new TaskCreationModel($this->container);
+        $taskFinderModel = new TaskFinderModel($this->container);
+
+        $this->assertEquals(1, $projectModel->create(array('name' => 'test')));
+        $this->assertEquals(1, $taskCreationModel->create(array('project_id' => 1, 'title' => 'with cover')));
+        $this->assertEquals(2, $taskCreationModel->create(array('project_id' => 1, 'title' => 'without cover')));
+        $this->assertEquals(1, $fileModel->create(1, 'image.png', 'tmp/image', 10));
+
+        $tasks = $taskFinderModel->getExtendedQuery()->asc('tasks.id')->findAll();
+        $this->assertEquals(1, $tasks[0]['cover_image_id']);
+        $this->assertEquals('tmp/image', $tasks[0]['cover_image_path']);
+        $this->assertNull($tasks[1]['cover_image_id']);
+        $this->assertNull($tasks[1]['cover_image_path']);
     }
 }

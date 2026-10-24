@@ -536,4 +536,21 @@ class ProjectModelTest extends Base
         $this->assertEquals(array(2 => 'Project A', 1 => 'Project B'), $projectModel->getList(false, false));
         $this->assertEquals(array(0 => 'None', 2 => 'Project A', 1 => 'Project B'), $projectModel->getList(true, false));
     }
+
+    public function testCoverSettings()
+    {
+        $projectModel = new ProjectModel($this->container);
+
+        $this->assertEquals(1, $projectModel->create(array('name' => 'UnitTest')));
+
+        $project = $projectModel->getById(1);
+        $this->assertEquals(ProjectModel::COVER_LAYOUT_FULL, $project['cover_layout']);
+        $this->assertEquals(1, $project['cover_auto']);
+
+        $this->assertTrue($projectModel->update(array('id' => 1, 'cover_layout' => ProjectModel::COVER_LAYOUT_BANNER, 'cover_auto' => '0')));
+
+        $project = $projectModel->getById(1);
+        $this->assertEquals(ProjectModel::COVER_LAYOUT_BANNER, $project['cover_layout']);
+        $this->assertEquals(0, $project['cover_auto']);
+    }
 }
